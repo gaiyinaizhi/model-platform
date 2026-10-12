@@ -11,7 +11,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-MAX_BODY = 1024 * 1024
+MAX_BODY = 2 * 1024 * 1024
 MAX_ACTIVE_RUNS = 32
 MAX_DEPLOYMENTS = 4
 MAX_ATTEMPTS = 3
@@ -51,12 +51,12 @@ def text_value(value, name, limit=160):
     return value
 
 
-def features(value, dimensions=None, maximum=128):
+def features(value, dimensions=None, maximum=128, max_dimensions=16):
     if not isinstance(value, list) or not 1 <= len(value) <= maximum:
         raise Problem(400, "invalid_input", "Invalid feature row count")
     width = dimensions
     for row in value:
-        if not isinstance(row, list) or not 1 <= len(row) <= 16:
+        if not isinstance(row, list) or not 1 <= len(row) <= max_dimensions:
             raise Problem(400, "invalid_input", "Invalid feature dimensions")
         width = width or len(row)
         if len(row) != width:
@@ -83,13 +83,24 @@ def samples(value, dimensions=None):
 
 
 def training_request(body):
-    object_fields(body, ("dataset", "config"), ("business_ref",))
+    object_fields(body, ("dataset", "config"), ("business_ref", "recipe"))
     data = body["dataset"]
-    object_fields(data, ("source", "version", "rights_confirmed", "train", "evaluation"))
+    recipe = body.get("recipe", RECIPE)
+    from . import digits
+    if recipe not in (RECIPE, digits.RECIPE):
+        raise Problem(400, "invalid_input", "Unsupported recipe")
+    if recipe == RECIPE:
+        object_fields(data, ("source", "version", "rights_confirmed", "train", "evaluation"))
+    else:
+        digits.validate_request(data, body["config"])
     text_value(data["source"], "dataset source")
     text_value(data["version"], "dataset version")
     if data["rights_confirmed"] is not True:
         raise Problem(400, "invalid_input", "Legal data usage confirmation required")
+    if "business_ref" in body:
+        text_value(body["business_ref"], "business_ref")
+    if recipe == digits.RECIPE:
+        return body
     width = samples(data["train"])
     samples(data["evaluation"], width)
     if len(data["train"]) + len(data["evaluation"]) > 1000:
@@ -102,6 +113,8 @@ def training_request(body):
     if type(config["epochs"]) is not int or not 1 <= config["epochs"] <= 200:
         raise Problem(400, "invalid_input", "epochs must be integer 1..200")
     number(config["learning_rate"], 0.001, 1.0)
+    if len(encode(body)) > 1024 * 1024:
+        raise Problem(413, "too_large", "Binary request budget exceeded")
     if "business_ref" in body:
         text_value(body["business_ref"], "business_ref")
     return body
@@ -115,7 +128,7 @@ def environment():
         code.update(path.read_bytes())
     return {"python": platform.python_version(), "platform": platform.platform(),
             "code_sha256": code.hexdigest(), "dependencies": "stdlib-only",
-            "recipe": RECIPE, "contract": CONTRACT}
+            "supported_recipes": [RECIPE, "softmax-digits/v1"]}
 
 
 class Runtime:

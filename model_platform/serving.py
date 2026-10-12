@@ -39,7 +39,7 @@ def serve(runtime, deployment_id, fd, parent_pid):
                 object_fields(body, ("features",))
                 result = predict(model, body["features"])
                 self.respond(200, {"deployment_id": deployment_id, "model_version_id": manifest["model_version_id"],
-                                   "artifact_sha256": manifest["artifact_sha256"], "contract": CONTRACT, "predictions": result})
+                                   "artifact_sha256": manifest["artifact_sha256"], "contract": model["contract"], "predictions": result})
             except Problem as exc:
                 self.handle_problem(exc)
             except (BrokenPipeError, ConnectionResetError):

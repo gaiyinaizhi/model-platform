@@ -17,12 +17,12 @@ visionlab、教学、机器人和无人机产品独立。本平台不承担课�
 - 一个运行目录限一个 API、一个 Worker；文件锁在进程死亡时释放。Worker 启动将未终结 attempt 标记 interrupted/failed，保留日志；不自动重训。显式 retry 新增 attempt，最多 3 次。queued 请求继续领取。
 - API 监督子进程；推理端口仅 localhost，随机内部 capability 通过 stdin 传递。对外调用必须经过鉴权 API，不允许任意路径、URL、代码配方或 pickle。部署只加载已登记版本并校验 SHA-256。
 - API 重启清除旧观察状态，按持久化 desired 状态重建实例，再实际探测。子进程检测父进程死亡后退出；不会基于旧 PID 杀任意进程。停止先保存 stopped 期望并阻断新调用，再等待子进程终结。已受理调用可能完成，停止返回时子进程已终结。
-- 资源预算：全局 32 个排队/运行 run，单 Worker，最多 4 个活动部署，API 最多 16 个连接、每 tenant 每分钟 120 请求、每请求 1 MiB；单次训练最多 1,000 行、16 特征、200 epoch、60 秒；推理最多 128 行。不同 token 的 tenant 对所有对象强制隔离，客户端不能选择租户。
+- 资源预算：全局 32 个排队/运行 run，单 Worker，最多 4 个活动部署，API 最多 16 个连接、每 tenant 每分钟 120 请求、每请求 2 MiB（原二分类规范化 JSON ≤1 MiB）；二分类单次训练最多 1,000 行、16 特征、200 epoch、60 秒；推理最多 128 行。不同 token 的 tenant 对所有对象强制隔离，客户端不能选择租户。
 - 这些是逻辑预算和进程分离，**没有 cgroup、容器、CPU 配额、RSS 硬上限、独立 OS 用户或 GPU 隔离**。同一 OS 用户可读本地数据，训练仍可能争用 CPU。仅支持可信本地操作者、小型 CPU 数据，不能宣称生产多租户安全或公网就绪。
 
 ## 数据、算法与血缘
 
-唯一配方 `logistic-regression/v1`：纯 Python 批梯度下降二分类，标准化参数只从训练集拟合；学习率和 epoch 固定输入，确定性零初始化。模型是带契约版本的 JSON 浮点数组。
+兼容配方 `logistic-regression/v1`：纯 Python 批梯度下降二分类，标准化参数只从训练集拟合；学习率和 epoch 固定输入，确定性零初始化。模型是带契约版本的 JSON 浮点数组。
 
 提交必须包含 `rights_confirmed: true`、数据 source/version、分开的 train/evaluation 集（两者均含 0/1，样本特征不可跨集合重叠）。数值有限、有界、维数一致。合成数据仅用于可复核示例，但执行的是实际参数优化和实际留出集预测，不伪造指标。全常量训练特征是合法输入但算法不可训练，会产生真实失败记录。
 
@@ -52,3 +52,11 @@ run 固定输入快照、摘要、配方、代码源码摘要、Python/平台环
 ## 后续能力
 
 更新/回滚需新部署 ID，首版没有流量原子切换与自动回滚；没有模型质量发布门槛、审批准入或生产发布。设备包、视觉算法、厂商来源、外部 endpoint、对象存储、分布式 Worker、取消、强资源隔离和成熟多用户权限体系另行设计与验收。
+
+## 数字十分类增量契约
+
+POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新值 softmax-digits/v1 对应独立 digits-64x10/v1 / softmax-json/v1；旧 JSON 权重和二分类输出结构继续加载。新配方限定64个整数0..16特征、标签0..9、每split含十类、训练10..3823行/评估10..1797行、epochs1..60、learning_rate0.001..0.1、seed整数0..2^32-1。其固定像素缩放/16不学习test统计；标准库softmax SGD、确定性零初始化与固定种子洗牌，不引入pickle或新依赖。Worker限制训练循环120秒，产物最大32KiB。API只校验和排队，不训练。
+
+数据须另含 provenance（archive_sha256/train_sha256/evaluation_sha256、official_split=true、license=CC-BY-4.0、固定UCI source_url）；API检查声明格式而不下载或独立认证来源，也不保证小型调用方样本就是完整官方数据。完整数据演示由下载脚本校验固定官方原字节SHA256，实际用3823训练、1797最终测试。数字配方保留量化后相同特征的不同记录；模型manifest记录跨split重合评估行数与来源声明，下载审计另有完整重复统计。原二分类重合拒绝保持不变。
+
+新推理输出每行 `{class: 0..9, probabilities: [p0,...,p9]}`，响应contract、deployment.contract以及manifest均来自绑定模型；ready探测验证十项概率与和。仍限128行/请求。评估重载登记前产物，独立计算 held-out-multiclass/v1 的accuracy、macro_f1（固定十类）、log_loss、confusion（行真值/列预测）及class_order。训练与评估预测耗时是当前环境观察，不是性能基准。无test调参、早停、原图CNN、ONNX/GPU或设备扩展。数据归属、来源及运行见[digits.md](digits.md)。

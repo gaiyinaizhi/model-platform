@@ -51,6 +51,9 @@ def train(rows, config, log):
 
 
 def validate_model(model):
+    from . import digits
+    if isinstance(model, dict) and model.get("recipe") == digits.RECIPE:
+        return digits.validate_model(model)
     object_fields(model, ("format", "recipe", "contract", "dimensions", "weights", "bias", "means", "scales"))
     if model["format"] != "logistic-json/v1" or model["recipe"] != RECIPE or model["contract"] != CONTRACT:
         raise ValueError("Unsupported model contract")
@@ -70,13 +73,16 @@ def load_model(path, expected_hash):
     if path.is_symlink():
         raise ValueError("Symlink artifacts are not supported")
     with path.open("rb") as stream:
-        content = stream.read(16385)
-    if len(content) > 16384 or hashlib.sha256(content).hexdigest() != expected_hash:
+        content = stream.read(32769)
+    if len(content) > 32768 or hashlib.sha256(content).hexdigest() != expected_hash:
         raise ValueError("Artifact integrity check failed")
     return validate_model(json.loads(content))
 
 
 def predict(model, xs):
+    from . import digits
+    if model["recipe"] == digits.RECIPE:
+        return digits.predict(model, xs)
     features(xs, model["dimensions"])
     outputs = []
     for x in xs:

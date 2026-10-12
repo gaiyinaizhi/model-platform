@@ -96,7 +96,7 @@ class Store:
             row = self._owned(db, "runs", tenant, run_id)
             body = json.loads(row["input_json"])
             result = {k: row[k] for k in ("id", "status", "created_at", "updated_at", "request_sha256", "model_version_id")}
-            result.update(recipe=RECIPE, environment=json.loads(row["environment_json"]),
+            result.update(recipe=body.get("recipe", RECIPE), environment=json.loads(row["environment_json"]),
                           dataset={"source": body["dataset"]["source"], "version": body["dataset"]["version"],
                                    "sha256": digest(body["dataset"]), "train_count": len(body["dataset"]["train"]),
                                    "evaluation_count": len(body["dataset"]["evaluation"])}, config=body["config"],
@@ -218,7 +218,8 @@ class Store:
     def deployment(self, tenant, deployment_id):
         with self.runtime.connection() as db:
             row = dict(self._owned(db, "deployments", tenant, deployment_id))
-            row.update(contract="binary-numeric/v1", runtime="python-cpu-json/v1", resources={"processes": 1, "gpu": 0,
+            model = self._owned(db, "models", tenant, row["model_version_id"])
+            row.update(contract=json.loads(model["manifest_json"])["contract"], runtime="python-cpu-json/v1", resources={"processes": 1, "gpu": 0,
                        "hard_cpu_memory_isolation": False}, ready=row["observed"] == "ready" and row["desired"] == "running",
                        endpoint=f"/deployments/{deployment_id}/predict")
             return row

@@ -171,7 +171,7 @@ class PlatformTests(unittest.TestCase):
             conn.putheader("Authorization", "Bearer " + self.tokens["demo"])
             conn.putheader("Idempotency-Key", "large")
             conn.putheader("Content-Type", "application/json")
-            conn.putheader("Content-Length", str(1024 * 1024 + 1))
+            conn.putheader("Content-Length", str(2 * 1024 * 1024 + 1))
             conn.endheaders()
             response = conn.getresponse()
             self.assertEqual(response.status, 413)

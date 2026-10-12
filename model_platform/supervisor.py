@@ -78,9 +78,13 @@ class Supervisor:
             self.store.observe(deployment_id, "failed", "serving_exited")
             return False
         try:
-            result = self.call(instance, [[0.0] * instance.manifest["dimensions"]])
+            result = self.call(instance, [[0] * instance.manifest["dimensions"]])
             output = result["predictions"][0]
-            if output["class"] not in (0, 1) or not 0 <= output["probability"] <= 1:
+            if instance.manifest["contract"] == "digits-64x10/v1":
+                ps = output["probabilities"]
+                if output["class"] not in range(10) or len(ps) != 10 or not all(0 <= p <= 1 for p in ps) or abs(sum(ps) - 1) > 1e-8:
+                    raise ValueError("Invalid digits probe output")
+            elif output["class"] not in (0, 1) or not 0 <= output["probability"] <= 1:
                 raise ValueError("Invalid probe output")
             self.store.observe(deployment_id, "ready", pid=instance.process.pid)
             return True
@@ -137,7 +141,11 @@ class Supervisor:
             if row["desired"] != "running" or not instance or not self._probe(deployment_id, instance):
                 raise Problem(503, "not_ready", "Deployment is not actually ready")
             from .common import features
-            features(xs, instance.manifest["dimensions"])
+            if instance.manifest["contract"] == "digits-64x10/v1":
+                from .digits import pixels
+                pixels(xs)
+            else:
+                features(xs, instance.manifest["dimensions"])
             try:
                 return self.call(instance, xs)
             except Exception:
