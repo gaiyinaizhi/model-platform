@@ -79,16 +79,10 @@ class Supervisor:
             self.store.observe(deployment_id, "failed", "serving_exited")
             return False
         try:
-            result = self.call(instance, [[0] * instance.manifest["dimensions"]])
-            output = result["predictions"][0]
             from .recipes import for_manifest
             spec = for_manifest(instance.manifest)
-            if spec.classes > 2:
-                ps = output["probabilities"]
-                if output["class"] not in range(spec.classes) or len(ps) != spec.classes or not all(0 <= p <= 1 for p in ps) or abs(sum(ps) - 1) > 1e-8:
-                    raise ValueError("Invalid digits probe output")
-            elif output["class"] not in (0, 1) or not 0 <= output["probability"] <= 1:
-                raise ValueError("Invalid probe output")
+            result = self.call(instance, spec.readiness_input(instance.manifest["dimensions"]))
+            spec.validate_readiness(result["predictions"])
             self.store.observe(deployment_id, "ready", pid=instance.process.pid)
             return True
         except Exception:

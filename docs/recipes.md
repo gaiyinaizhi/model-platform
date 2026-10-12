@@ -1,6 +1,6 @@
 # 内部配方扩展协议
 
-2026-10-12：本次把三套已有配方的分派集中到 [`model_platform/recipes.py`](../model_platform/recipes.py)，不新增业务集成或任意插件执行能力。外部 `POST /runs`、登记产物、预测响应及旧版本血缘继续使用已有契约。省略 `recipe` 仍选择 `logistic-regression/v1`，不会规范化改写请求体，因此既有幂等摘要语义不变。
+2026-10-12：本次把原三套配方的分派集中到 [`model_platform/recipes.py`](../model_platform/recipes.py)，不新增业务集成或任意插件执行能力。外部 `POST /runs`、登记产物、预测响应及旧版本血缘继续使用已有契约。省略 `recipe` 仍选择 `logistic-regression/v1`，不会规范化改写请求体，因此既有幂等摘要语义不变。
 
 ## 静态、受审查的注册
 
@@ -38,6 +38,14 @@ Worker 继续独占 attempt/队列生命周期、源码环境摘要核验、错�
 
 现有鉴权 `GET /health` 的 `recipes` 仍为 ID 列表。未来可以单独评审一个鉴权只读 `GET /recipes`，提供 versioned discovery contract、ID、task kind、输入形状/范围、输出语义/类别顺序、指标名、数据模式、配置默认值和限制、依赖要求、可用能力。应区分“服务器支持该配方”与“运行时依赖已就绪”，不能将 catalog 列表当作 Worker 健康或硬隔离承诺。
 
-当前 vision-lab 是 YOLO 检测界面，检测框/mAP 不可直接映射三套分类配方。未来接入需先确认业务任务与输出契约，不能只替换 base URL；本次没有调用、猜测或实现 vision-lab 的 API。
+当前 vision-lab 是 YOLO 检测界面，检测框/mAP 不可直接映射三套分类配方。未来接入需先确认业务任务与输出契约，不能只替换 base URL；本次没有调用、猜测或实现 vision-lab 的 API。新增 YOLOX 检测后端见 [detection.md](detection.md)，仍需单独匹配业务契约。
 
 新增配方的验收至少覆盖：注册冲突/未知配方、输入和预算拒绝、无可选库启动、真实训练/导出/独立评估、旧产物兼容、预测/停止/崩溃恢复/版本绑定、失败重试和代码变更边界。CI 见 [ci.md](ci.md)，本次实际结果见 [verification.md](verification.md)。
+
+## 检测扩展
+
+新增 `yolox-nano-cat/v1` / `rgb-cat-detection/v1` / `yolox-nano-onnx/v1`，128训练/32测试（另32验证）、20epochs、600秒训练/120秒导出/180秒评估、8MiB产物、1图预测。其 `features` 是RGB对象数组，`dimensions=76800` 绑定模型tensor，不代表输入原图必须160×160。
+
+RecipeSpec 新增成对可选 `probe_input` / `probe_output` callback，supervisor 通过 `readiness_input` / `validate_readiness` 调用；旧分类保留原零向量/概率验证，单类检测必须提供task-specific探测。空框是合法服务响应，不能强制分类概率字段。新增源码目录递归参与代码摘要，旧版本登记不改写。
+
+检测可选依赖在 `requirements-detection.lock` hash锁定（复用Fashion stack加Pillow/pycocotools）；导入目录不加载这些库。静态注册不是任意模型上传许可。

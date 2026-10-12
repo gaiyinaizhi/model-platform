@@ -122,8 +122,8 @@ def environment():
     from .recipes import recipe_ids
     root = Path(__file__).parent
     code = hashlib.sha256()
-    for path in sorted(root.glob("*.py")):
-        code.update(path.name.encode())
+    for path in sorted(root.rglob("*.py")):
+        code.update(path.relative_to(root).as_posix().encode())
         code.update(path.read_bytes())
     return {"python": platform.python_version(), "platform": platform.platform(),
             "code_sha256": code.hexdigest(), "dependencies": "base=stdlib-only; optional recipe dependencies recorded in manifest",

@@ -54,3 +54,13 @@ python -m venv .venv-fashion
 - YAML 解析、全部 `run` 脚本的 `bash -n`、触发条件/权限/完整 SHA/超时/并发/独立 job 结构检查通过
 
 以上计数对应 CI 配置验证时的源码快照；后续新增测试的完整回归结果见 [verification.md](verification.md)。未运行 GitHub 托管 Actions，也未推送、修改远端权限或分支保护。官方 Action 本身与 GitHub 调度无法由本地 shell 验证，远端 CI 结果必须以授权提交后对应 Actions run 为准。
+
+检测增量将可选job切到 `requirements-detection.lock` 并执行无数据回归选择，包含真实无训练YOLOX ONNX小图导出/加载、合成几何/标准AP已知答案以及缓存拒绝测试；CI不下载Open Images，不重训真实检测器，不声称指标质量验收。标准库job对可选库测试明确skip，检测目录导入仍仅标准库。
+
+### 干净、无数据工作副本验收
+
+可选job按精确ID仅排除 `test_fashion_data.OptionalOfficialCacheTests.test_full_source_is_reverified_offline` 一项真实官方缓存集成测试，并要求发现该ID恰好一次。其余任何skip或失败仍使job失败；不是允许全部可选测试跳过，也不依赖开发机残留数据。该真实缓存项保留在完整本地验收中，另有合成解析/缓存安全测试常规运行。
+
+2026-10-12已从Git可提交源码创建全新副本（不复制 `.runtime`、模型、图片或venv），用既有hash锁定Python环境执行workflow中完全相同的测试选择：176项全部通过、0skip，25.3秒；运行前后没有官方数据缓存目录。完整本地含官方缓存验收仍为177项全过。训练核心源码未因这次CI修复变化，无需再次训练。
+
+同一干净副本的标准库全套也已实跑：177项，134通过、43项可选库跳过，17.9秒。

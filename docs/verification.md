@@ -146,3 +146,7 @@ Fashion ONNX/PyTorch 全10000 test 的 argmax agreement 为 1.0，最大绝对 l
 另外用新 API/serving 直接加载变更前持久化的三套已登记模型；不重写旧 manifest，实际预测、停止及停止后503都通过，旧模型的代码血缘 `dd74a334d6d165edf4c5f4e8eb0f4e287a09f866acb6deea4392d32156da193f` 保持不变。临时 API、Worker、serving 均已终结，验证创建的部署均 stopped。
 
 未在本阶段执行 GitHub 托管 Actions；本地通过不等于远端 CI 已通过。没有 commit、push、merge、部署或修改远端配置。本阶段不实现 vision-lab 接入。
+
+## YOLOX 检测与 mAP 最终增量验收
+
+详见 [检测验收/质量缺陷](detection.md) 和 [结构化证据](detection-verification.json)。177可选测试全过，标准库134通过43跳过；真实YOLOX训练、32图独立test AP50=0.5151476295/AP50:95=0.1721211584、双后端框及AP一致性、持续服务/停止/重启和三分类真实demo通过。原始候选存在高置信极端坐标，模型质量不合格，禁止生产使用；技术生命周期通过不能替代模型质量验收。所有测试进程/演示部署已清理，无数据/权重提交。

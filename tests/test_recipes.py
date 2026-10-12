@@ -16,7 +16,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from model_platform import algorithm, digits, fashion, recipes
+from model_platform import algorithm, digits, fashion, recipes, detection
 from model_platform.common import CONTRACT, RECIPE, Problem, digest, encode, training_request
 from scripts.demo import request_body
 import test_digits
@@ -26,6 +26,7 @@ import test_platform
 EXPECTED_BUDGETS = {
     RECIPE: recipes.Budgets(1024 * 1024, 1000, 1000, 1000, 16, 200, 128, 60, 32768),
     digits.RECIPE: recipes.Budgets(2 * 1024 * 1024, 3823, 1797, None, 64, 60, 128, 120, 32768),
+    detection.RECIPE: recipes.Budgets(2 * 1024 * 1024, 128, 32, None, 76800, 20, 1, 600, 8 * 1024 * 1024, 120, 180),
     fashion.RECIPE: recipes.Budgets(2 * 1024 * 1024, 6000, 10000, None, 784, 5, 32, 600,
                                    2 * 1024 * 1024, 120, 120),
 }
@@ -33,10 +34,11 @@ EXPECTED_BUDGETS = {
 
 class RegistryTests(unittest.TestCase):
     def test_exact_builtins_metadata_and_nested_immutability(self):
-        self.assertEqual(recipes.recipe_ids(), [RECIPE, digits.RECIPE, fashion.RECIPE])
+        self.assertEqual(recipes.recipe_ids(), [RECIPE, digits.RECIPE, fashion.RECIPE, detection.RECIPE])
         expected_contracts = {RECIPE: (CONTRACT, "logistic-json/v1", 2, "inline"),
                               digits.RECIPE: (digits.CONTRACT, digits.FORMAT, 10, "inline"),
-                              fashion.RECIPE: (fashion.CONTRACT, fashion.FORMAT, 10, "fixed-reference")}
+                              fashion.RECIPE: (fashion.CONTRACT, fashion.FORMAT, 10, "fixed-reference"),
+                              detection.RECIPE: (detection.CONTRACT, detection.FORMAT, 1, "fixed-reference")}
         for recipe_id, expected in expected_contracts.items():
             spec = recipes.get_recipe(recipe_id)
             self.assertEqual((spec.contract, spec.format, spec.classes, spec.data_mode), expected)
@@ -70,7 +72,7 @@ class RegistryTests(unittest.TestCase):
             with self.subTest(duplicate=duplicate.id):
                 with self.assertRaises(ValueError):
                     recipes.build_registry((base, duplicate))
-        self.assertEqual(recipes.recipe_ids(), [RECIPE, digits.RECIPE, fashion.RECIPE])
+        self.assertEqual(recipes.recipe_ids(), [RECIPE, digits.RECIPE, fashion.RECIPE, detection.RECIPE])
 
     def test_registry_rejects_malformed_source_registration(self):
         base = recipes.get_recipe(RECIPE)
@@ -121,13 +123,13 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(recipes.catalog(), original)
         ids = recipes.recipe_ids()
         ids.clear()
-        self.assertEqual(len(recipes.recipe_ids()), 3)
+        self.assertEqual(len(recipes.recipe_ids()), 4)
         script = """
 import builtins
 import json
 import sys
 original_import = builtins.__import__
-blocked = {'torch', 'numpy', 'onnx', 'onnxruntime', 'onnxscript'}
+blocked = {'torch', 'numpy', 'onnx', 'onnxruntime', 'onnxscript', 'PIL', 'pycocotools'}
 def guarded(name, *args, **kwargs):
     if name.split('.')[0] in blocked:
         raise AssertionError('optional dependency imported: ' + name)
@@ -184,9 +186,19 @@ assert 'model_platform.recipe_execution' not in sys.modules
 
     def test_declared_online_and_epoch_budgets_are_enforced(self):
         factories = {RECIPE: request_body, digits.RECIPE: test_digits.synthetic_request,
-                     fashion.RECIPE: fashion.request_body}
+                     fashion.RECIPE: fashion.request_body, detection.RECIPE: detection.request_body}
         for spec in recipes.REGISTRY.values():
             with self.subTest(recipe=spec.id):
+                if spec.id == detection.RECIPE:
+                    spec.validate_features(detection.probe_input(), spec.budgets.max_dimensions)
+                    with self.assertRaises(Problem):
+                        spec.validate_features(detection.probe_input() * 2, spec.budgets.max_dimensions)
+                    body = detection.request_body()
+                    training_request(body)
+                    body["config"]["epochs"] += 1
+                    with self.assertRaises(Problem):
+                        training_request(body)
+                    continue
                 width = 1 if spec.id == RECIPE else spec.budgets.max_dimensions
                 spec.validate_features([[0] * width] * spec.budgets.prediction_rows, width)
                 with self.assertRaises(Problem):

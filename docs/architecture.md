@@ -70,3 +70,7 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 三套配方现由不可变静态白名单统一分派校验、执行、产物加载和预测，配方预算与元数据有单一目录；见 [recipes.md](recipes.md)。不开放运行时注册、外部代码导入或新 HTTP 发现路由。旧请求/产物/预测/血缘兼容；可选库继续 lazy。Worker 与 supervisor 生命周期职责不变。
 
 新增 [CPU CI](ci.md) 执行标准库全部测试和独立 hash-locked ONNX 无数据下载回归。远端 Actions 的实际状态以对应提交的 run 为准，本地执行不等同远端已通过。
+
+## YOLOX 单类检测增量契约
+
+检测是独立的 `rgb-cat-detection/v1`，输入受限单张RGB像素对象，输出原图绝对坐标框、class_id=0、confidence，无分类概率向量。训练固定许可来源的数据引用，CPU从零训练并ONNX导出；验证/测试独立，报告COCO-style AP50及AP50:95，不冒充Open Images官方benchmark。探测回调由静态配方定义，沿用原版本登记、独立服务、停止和期望状态恢复。详见 [detection.md](detection.md)。

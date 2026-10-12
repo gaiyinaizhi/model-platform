@@ -1,0 +1,559 @@
+{
+  "scope": "Source and documentation only; git-eligible files excluding this self-referential manifest",
+  "baseline_snapshot": "pre-detection-20261012T1422",
+  "code_sha256": "bedc28c7c168f31d3f68ce5b139e9e6822c24fe7eb7f66a99c663bf6b1f70159",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 4307,
+      "sha256": "46b816151aed2ec0554f864b9f58953ac53c08c79f81eecfa994e68d5ca1f1cc"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 646,
+      "sha256": "e0791edf996e0bdb54d73a24a961495a82e6c861856cfc84beef65a87ff475d6"
+    },
+    {
+      "path": ".python-version",
+      "bytes": 8,
+      "sha256": "f50159fad3f4319868eb38717b91d55843c41e9803014c8de05e116a6d0bcfdc"
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 5346,
+      "sha256": "83bfb732c4cd7d2dfcd23e0b5c139e63400d59282d85f036ccc3efa2bddabdd7"
+    },
+    {
+      "path": "README.md",
+      "bytes": 10833,
+      "sha256": "4bc89101df59cca183216364cc94a138defad077e7d531ac5e7ab99349fc4fcf"
+    },
+    {
+      "path": "docs/architecture.md",
+      "bytes": 10457,
+      "sha256": "0a5b5bb4aefdfb544ff3cd99ae25004e77d895cbedf5decaff0b8d01ed13a8fa"
+    },
+    {
+      "path": "docs/ci.md",
+      "bytes": 7267,
+      "sha256": "8a981297a4227ee1d40ece8bcf6d5872b78359df8c8843930197be8e26e461e1"
+    },
+    {
+      "path": "docs/detection-data.md",
+      "bytes": 7739,
+      "sha256": "34967bf6a88a83ae8ff351fc2754cff219b5b8ab3daef20d010d8b32ca35cbde"
+    },
+    {
+      "path": "docs/detection-verification.json",
+      "bytes": 8330,
+      "sha256": "4f6a68682a0467e616e6e3cf70cbbfea5c5464dd44078198bed1f3f19fb38433"
+    },
+    {
+      "path": "docs/detection.md",
+      "bytes": 8314,
+      "sha256": "49e8591f6ce2294672b946aed8f670504b5a70f64874594ada1070578cb584d3"
+    },
+    {
+      "path": "docs/digits.md",
+      "bytes": 9554,
+      "sha256": "0e3c33b600157f68619a3bb31dfbf45aaa7d99cc95ecdd17fb40671ef5f47084"
+    },
+    {
+      "path": "docs/fashion-verification.json",
+      "bytes": 13564,
+      "sha256": "e22970a602e06cdf6b3f076907ca525c07c2b128441e12e3da0c2531b1f18928"
+    },
+    {
+      "path": "docs/fashion.md",
+      "bytes": 6770,
+      "sha256": "977505eb9d0def85868a46bca32934eb59534fa7113fa0f1e81f5f0d28cae14c"
+    },
+    {
+      "path": "docs/licenses/fashion-mnist-MIT.txt",
+      "bytes": 1109,
+      "sha256": "13ef4788476d292858fa60eb9a5f74aeca5c65770bc885ccaa05823a17ef7be1"
+    },
+    {
+      "path": "docs/recipes.md",
+      "bytes": 6732,
+      "sha256": "d4bc4c21cf919704c89abaaa964c9dd02e67bf8da15be395518b0cd57a7c81a5"
+    },
+    {
+      "path": "docs/registry-verification.json",
+      "bytes": 2610,
+      "sha256": "cc6a764feeeeca2f46303867ed5a352a0995af9c48b180de7d6c00db130f3f50"
+    },
+    {
+      "path": "docs/roadmap.md",
+      "bytes": 3485,
+      "sha256": "f3bfaea0d8cb9b80e910d83aee5774bd1fb72488119a7abe64a7e34503c2ff71"
+    },
+    {
+      "path": "docs/verification.md",
+      "bytes": 15890,
+      "sha256": "f09ce6313da6d083d12443ccb4ecdd25c09d7126464a7296b08c3fb232d7c29a"
+    },
+    {
+      "path": "model_platform/__init__.py",
+      "bytes": 66,
+      "sha256": "e33351ed797dfea3cc3f0bb912c2afdc2ddd73ae76fc38a9866be592eda9a821"
+    },
+    {
+      "path": "model_platform/__main__.py",
+      "bytes": 2270,
+      "sha256": "9b464458befc98c091a9d362c5b48a73a87e71bfdf8db7288d84c69274ade9df"
+    },
+    {
+      "path": "model_platform/algorithm.py",
+      "bytes": 5245,
+      "sha256": "07e8b5ff5ead1cde9bd3bdf361a468eb95c33e4b5878a5b3f402da5158076dd9"
+    },
+    {
+      "path": "model_platform/api.py",
+      "bytes": 6908,
+      "sha256": "40556417ee24ef14245711af107609cdc499c62b2b30da2a0322198e2fb4303d"
+    },
+    {
+      "path": "model_platform/common.py",
+      "bytes": 6414,
+      "sha256": "aa9bd8957b30f874f141e0c7d42c3dde72fe5ac63f38c19c2d48bad995d199bd"
+    },
+    {
+      "path": "model_platform/detection.py",
+      "bytes": 8334,
+      "sha256": "ca0891ceb668fd4820f21432f33cd4b8c14e4a1dc05285224e378108a29b0a04"
+    },
+    {
+      "path": "model_platform/detection_data.py",
+      "bytes": 3886,
+      "sha256": "bd3142c6947a8c892a5032cb18e59c262a6f4c999d448f0cda1a984ab556ae2e"
+    },
+    {
+      "path": "model_platform/detection_evaluation.py",
+      "bytes": 13720,
+      "sha256": "24c747d04213d262f3a9e6562cc33c69dd65de87bec701e58ae21958de3a3594"
+    },
+    {
+      "path": "model_platform/detection_geometry.py",
+      "bytes": 12366,
+      "sha256": "8feb7a70b39d370e31f2d0aa7c64e5c914ee7208a4e54cb26a40fd731f575925"
+    },
+    {
+      "path": "model_platform/detection_training.py",
+      "bytes": 13648,
+      "sha256": "3442ffa068f8479521a1de076b0d5ef631c58993c51c0d3c56c5e64b8daccbeb"
+    },
+    {
+      "path": "model_platform/digits.py",
+      "bytes": 5845,
+      "sha256": "8f93d12be867c26c5cfe5d38d01cab0a95515f857375ece57fa0b41f1281862b"
+    },
+    {
+      "path": "model_platform/evaluation.py",
+      "bytes": 2303,
+      "sha256": "ffac0744c18c12270e02406990c436c8cda35781f25af8e4eeaa92d3768736b4"
+    },
+    {
+      "path": "model_platform/fashion.py",
+      "bytes": 5670,
+      "sha256": "70dc3f14fed9c6a516f9791d031dc5c2254d816b07f505411dd59cca03e493b0"
+    },
+    {
+      "path": "model_platform/fashion_data.py",
+      "bytes": 11664,
+      "sha256": "0af913cfe8cf87423cecd8885e1b4bb0ae27faac014f4a542f99db6f21e556a0"
+    },
+    {
+      "path": "model_platform/fashion_training.py",
+      "bytes": 17834,
+      "sha256": "122cb48f0baf3af7d33767f46ae38ecc1043c5287dfb6156b7aaae2ef3b688db"
+    },
+    {
+      "path": "model_platform/http_support.py",
+      "bytes": 3212,
+      "sha256": "ae0876589a3a2d354f3241b4e4b7ff7930bf9855c13dc55a064087292099cde9"
+    },
+    {
+      "path": "model_platform/recipe_execution.py",
+      "bytes": 2414,
+      "sha256": "df60faebfd5e5cc4a1bb1dc0784321c69c3dbc042a6b7364ee72529a63345135"
+    },
+    {
+      "path": "model_platform/recipes.py",
+      "bytes": 9154,
+      "sha256": "e6ed6215424f222749f4ed5a77e5f3a05bfff22eb152cc08d6fa1e477b678ea1"
+    },
+    {
+      "path": "model_platform/serving.py",
+      "bytes": 3019,
+      "sha256": "fe71a2c27fd1daa53b3f6834f4324ae16d563dc27fd3a0a2f2cf90970f3395b1"
+    },
+    {
+      "path": "model_platform/store.py",
+      "bytes": 14197,
+      "sha256": "965b6a2dbdde6be320ef7829eb105235e6095d8c77f793838f789dc3f6813e37"
+    },
+    {
+      "path": "model_platform/supervisor.py",
+      "bytes": 7399,
+      "sha256": "e0407f0054a1a963889a0070374e861523749081f01cf26079ab93c294c2d954"
+    },
+    {
+      "path": "model_platform/worker.py",
+      "bytes": 1960,
+      "sha256": "bf5c6f658d1042b0e750dcb8907f806104f90224f04a607bc50202dc938bb796"
+    },
+    {
+      "path": "model_platform/yolox_nano/LICENSE",
+      "bytes": 11371,
+      "sha256": "0ec3668d3274bcf29e8a29e9576d5a2cd96fc78d3c5bec4387355a796e5d9088"
+    },
+    {
+      "path": "model_platform/yolox_nano/UPSTREAM.json",
+      "bytes": 1157,
+      "sha256": "c75b9d5496782170cff8dfa82e173b09152eee26a8b35082ff7b29b0bc1aad62"
+    },
+    {
+      "path": "model_platform/yolox_nano/__init__.py",
+      "bytes": 74,
+      "sha256": "5fe9971f6a12d690974c3f1daefd236f39d6cc35d4e1ac46e57fe0571e6c625f"
+    },
+    {
+      "path": "model_platform/yolox_nano/darknet.py",
+      "bytes": 6019,
+      "sha256": "368c9db45166e863691cf7460b314d047928f90e8744c492a673b6eff9b809f3"
+    },
+    {
+      "path": "model_platform/yolox_nano/losses.py",
+      "bytes": 1677,
+      "sha256": "7fa685fb4653bab69d5880c3f749edeb8a4cabfe71fadf0acc5151c2eaa75702"
+    },
+    {
+      "path": "model_platform/yolox_nano/network_blocks.py",
+      "bytes": 6092,
+      "sha256": "f490240a674799f1b548ac4ca571c7f3e59d4e75efee8ebeb1e24e6e4e10d2a4"
+    },
+    {
+      "path": "model_platform/yolox_nano/utils.py",
+      "bytes": 1194,
+      "sha256": "41f0c70dedf63bfa2d72d19ce9b1fe23cd9ee741eb152382b9baf205f2df2569"
+    },
+    {
+      "path": "model_platform/yolox_nano/yolo_head.py",
+      "bytes": 18620,
+      "sha256": "75121ee3e6e6b4bf06b1bde28451e93215a6e787d228ddf675b02aeda90915e9"
+    },
+    {
+      "path": "model_platform/yolox_nano/yolo_pafpn.py",
+      "bytes": 3530,
+      "sha256": "8571af557f6caacda61e54813be4be2d73c4a0889e1f876ec5586057eb2eebde"
+    },
+    {
+      "path": "model_platform/yolox_nano/yolox.py",
+      "bytes": 1526,
+      "sha256": "9b855cc6efd7e9b20804a94b3369cb165483b83c8074e6135b43bb7ad1e3b86d"
+    },
+    {
+      "path": "requirements-detection.lock",
+      "bytes": 851,
+      "sha256": "bddb719392f1fc6890349717276091edd29df20840dba8c2477c1788631f02cc"
+    },
+    {
+      "path": "requirements-fashion.lock",
+      "bytes": 2571,
+      "sha256": "b71c5c4f65a5fe877180745deaf99a2f10cf26aca45d54ee39eccdb857767027"
+    },
+    {
+      "path": "requirements.lock",
+      "bytes": 166,
+      "sha256": "de004a5d683e10303668ddee7d9d29e7a3f4c7d543b76dba91d8f85d429f8fc4"
+    },
+    {
+      "path": "scripts/demo.py",
+      "bytes": 3343,
+      "sha256": "c5fa1cb7b795adcd18466cd6601923baa74436d9c56917fb8a24dde80afc6673"
+    },
+    {
+      "path": "scripts/demo_detection.py",
+      "bytes": 5029,
+      "sha256": "25d47d9cae966fd4a00f3b1d28599c534645fd39e60637b3469d46443e5b011a"
+    },
+    {
+      "path": "scripts/demo_digits.py",
+      "bytes": 8474,
+      "sha256": "a76e059c8e6b7054a4bf317a5c0d75fbe8f02fbcc61605eb6e23b80b008071e3"
+    },
+    {
+      "path": "scripts/demo_fashion.py",
+      "bytes": 11920,
+      "sha256": "a5a300f87d07118a57a839edd0dee5773e852eb2d5c950c5723eae17536dcb5a"
+    },
+    {
+      "path": "scripts/fetch_detection.py",
+      "bytes": 30851,
+      "sha256": "6d06df73336dfcd668ab7cbf998a43488616a608a197df4deaae0869ba58a048"
+    },
+    {
+      "path": "scripts/fetch_digits.py",
+      "bytes": 8584,
+      "sha256": "a81e35a3ac5df0fd967f6680e13fdb292bc2a46f83accac3e36037473b2cf300"
+    },
+    {
+      "path": "scripts/fetch_fashion.py",
+      "bytes": 982,
+      "sha256": "b66fa639a1f540309a87b90a4f4c8f1aa10b22e174a9266f9c6b97c3f196b5a4"
+    },
+    {
+      "path": "tests/test_detection.py",
+      "bytes": 25695,
+      "sha256": "15ed92922b0908918a6604d7488fa02283ea6d3d86631ee931d252c4c9badba5"
+    },
+    {
+      "path": "tests/test_detection_data.py",
+      "bytes": 4080,
+      "sha256": "fee5ab2b603801f7b044f245fd329d4719d9d0957e33f6eae9856d09d1e37471"
+    },
+    {
+      "path": "tests/test_detection_evaluation.py",
+      "bytes": 17409,
+      "sha256": "a391664143240320df7ca2a3100fa2b1dc91554169815c34103b2bea30115e7a"
+    },
+    {
+      "path": "tests/test_detection_geometry.py",
+      "bytes": 14450,
+      "sha256": "655fc7fb2890db8dd7c45d97c73f4d019cea23590f4467ee0fc664b61375002a"
+    },
+    {
+      "path": "tests/test_detection_parity.py",
+      "bytes": 1795,
+      "sha256": "eb4a2244d66a7a0a0f23e1f0ff3135ba6772766e476c917e887f778ac54f9fb8"
+    },
+    {
+      "path": "tests/test_digits.py",
+      "bytes": 31370,
+      "sha256": "52a89936b300b2f024ad6ff34aee46942bbb1b540f90a2552043a2df88dac90e"
+    },
+    {
+      "path": "tests/test_fashion.py",
+      "bytes": 26035,
+      "sha256": "ca5bc52af7d838df48ea800afe3053b50b44f6f2d250f10296b29c24686ff65e"
+    },
+    {
+      "path": "tests/test_fashion_data.py",
+      "bytes": 7466,
+      "sha256": "61f52ee42baf981e17694c51fc1d1d0deafa82bbefa25a8a9c8a5f1ab1c046d0"
+    },
+    {
+      "path": "tests/test_fetch_detection.py",
+      "bytes": 3104,
+      "sha256": "c0a3b2121303260349b25ff07a9c476e79d3cac9054738d960ffcbc57eacf39d"
+    },
+    {
+      "path": "tests/test_fetch_digits.py",
+      "bytes": 2270,
+      "sha256": "282f98194804e4bf37b768353bff26d4a5bda95af5e7bd3b3e0be8dd7b7ae6fc"
+    },
+    {
+      "path": "tests/test_platform.py",
+      "bytes": 22425,
+      "sha256": "349c0ced5c4925c527b6c785da4e35a786a5a9564ab0a437404854bd0e4fb16e"
+    },
+    {
+      "path": "tests/test_recipes.py",
+      "bytes": 23513,
+      "sha256": "140d0a85cce707a5123a4f03c85ddcbb0a850d5a223d4fef4142086aa3ad13c2"
+    }
+  ],
+  "detection_changes": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "status": "modified",
+      "sha256": "46b816151aed2ec0554f864b9f58953ac53c08c79f81eecfa994e68d5ca1f1cc"
+    },
+    {
+      "path": "README.md",
+      "status": "modified",
+      "sha256": "4bc89101df59cca183216364cc94a138defad077e7d531ac5e7ab99349fc4fcf"
+    },
+    {
+      "path": "docs/architecture.md",
+      "status": "modified",
+      "sha256": "0a5b5bb4aefdfb544ff3cd99ae25004e77d895cbedf5decaff0b8d01ed13a8fa"
+    },
+    {
+      "path": "docs/ci.md",
+      "status": "modified",
+      "sha256": "8a981297a4227ee1d40ece8bcf6d5872b78359df8c8843930197be8e26e461e1"
+    },
+    {
+      "path": "docs/detection-data.md",
+      "status": "added",
+      "sha256": "34967bf6a88a83ae8ff351fc2754cff219b5b8ab3daef20d010d8b32ca35cbde"
+    },
+    {
+      "path": "docs/detection-verification.json",
+      "status": "added",
+      "sha256": "4f6a68682a0467e616e6e3cf70cbbfea5c5464dd44078198bed1f3f19fb38433"
+    },
+    {
+      "path": "docs/detection.md",
+      "status": "added",
+      "sha256": "49e8591f6ce2294672b946aed8f670504b5a70f64874594ada1070578cb584d3"
+    },
+    {
+      "path": "docs/recipes.md",
+      "status": "modified",
+      "sha256": "d4bc4c21cf919704c89abaaa964c9dd02e67bf8da15be395518b0cd57a7c81a5"
+    },
+    {
+      "path": "docs/roadmap.md",
+      "status": "modified",
+      "sha256": "f3bfaea0d8cb9b80e910d83aee5774bd1fb72488119a7abe64a7e34503c2ff71"
+    },
+    {
+      "path": "docs/verification.md",
+      "status": "modified",
+      "sha256": "f09ce6313da6d083d12443ccb4ecdd25c09d7126464a7296b08c3fb232d7c29a"
+    },
+    {
+      "path": "model_platform/common.py",
+      "status": "modified",
+      "sha256": "aa9bd8957b30f874f141e0c7d42c3dde72fe5ac63f38c19c2d48bad995d199bd"
+    },
+    {
+      "path": "model_platform/detection.py",
+      "status": "added",
+      "sha256": "ca0891ceb668fd4820f21432f33cd4b8c14e4a1dc05285224e378108a29b0a04"
+    },
+    {
+      "path": "model_platform/detection_data.py",
+      "status": "added",
+      "sha256": "bd3142c6947a8c892a5032cb18e59c262a6f4c999d448f0cda1a984ab556ae2e"
+    },
+    {
+      "path": "model_platform/detection_evaluation.py",
+      "status": "added",
+      "sha256": "24c747d04213d262f3a9e6562cc33c69dd65de87bec701e58ae21958de3a3594"
+    },
+    {
+      "path": "model_platform/detection_geometry.py",
+      "status": "added",
+      "sha256": "8feb7a70b39d370e31f2d0aa7c64e5c914ee7208a4e54cb26a40fd731f575925"
+    },
+    {
+      "path": "model_platform/detection_training.py",
+      "status": "added",
+      "sha256": "3442ffa068f8479521a1de076b0d5ef631c58993c51c0d3c56c5e64b8daccbeb"
+    },
+    {
+      "path": "model_platform/recipes.py",
+      "status": "modified",
+      "sha256": "e6ed6215424f222749f4ed5a77e5f3a05bfff22eb152cc08d6fa1e477b678ea1"
+    },
+    {
+      "path": "model_platform/supervisor.py",
+      "status": "modified",
+      "sha256": "e0407f0054a1a963889a0070374e861523749081f01cf26079ab93c294c2d954"
+    },
+    {
+      "path": "model_platform/yolox_nano/LICENSE",
+      "status": "added",
+      "sha256": "0ec3668d3274bcf29e8a29e9576d5a2cd96fc78d3c5bec4387355a796e5d9088"
+    },
+    {
+      "path": "model_platform/yolox_nano/UPSTREAM.json",
+      "status": "added",
+      "sha256": "c75b9d5496782170cff8dfa82e173b09152eee26a8b35082ff7b29b0bc1aad62"
+    },
+    {
+      "path": "model_platform/yolox_nano/__init__.py",
+      "status": "added",
+      "sha256": "5fe9971f6a12d690974c3f1daefd236f39d6cc35d4e1ac46e57fe0571e6c625f"
+    },
+    {
+      "path": "model_platform/yolox_nano/darknet.py",
+      "status": "added",
+      "sha256": "368c9db45166e863691cf7460b314d047928f90e8744c492a673b6eff9b809f3"
+    },
+    {
+      "path": "model_platform/yolox_nano/losses.py",
+      "status": "added",
+      "sha256": "7fa685fb4653bab69d5880c3f749edeb8a4cabfe71fadf0acc5151c2eaa75702"
+    },
+    {
+      "path": "model_platform/yolox_nano/network_blocks.py",
+      "status": "added",
+      "sha256": "f490240a674799f1b548ac4ca571c7f3e59d4e75efee8ebeb1e24e6e4e10d2a4"
+    },
+    {
+      "path": "model_platform/yolox_nano/utils.py",
+      "status": "added",
+      "sha256": "41f0c70dedf63bfa2d72d19ce9b1fe23cd9ee741eb152382b9baf205f2df2569"
+    },
+    {
+      "path": "model_platform/yolox_nano/yolo_head.py",
+      "status": "added",
+      "sha256": "75121ee3e6e6b4bf06b1bde28451e93215a6e787d228ddf675b02aeda90915e9"
+    },
+    {
+      "path": "model_platform/yolox_nano/yolo_pafpn.py",
+      "status": "added",
+      "sha256": "8571af557f6caacda61e54813be4be2d73c4a0889e1f876ec5586057eb2eebde"
+    },
+    {
+      "path": "model_platform/yolox_nano/yolox.py",
+      "status": "added",
+      "sha256": "9b855cc6efd7e9b20804a94b3369cb165483b83c8074e6135b43bb7ad1e3b86d"
+    },
+    {
+      "path": "requirements-detection.lock",
+      "status": "added",
+      "sha256": "bddb719392f1fc6890349717276091edd29df20840dba8c2477c1788631f02cc"
+    },
+    {
+      "path": "scripts/demo_detection.py",
+      "status": "added",
+      "sha256": "25d47d9cae966fd4a00f3b1d28599c534645fd39e60637b3469d46443e5b011a"
+    },
+    {
+      "path": "scripts/fetch_detection.py",
+      "status": "added",
+      "sha256": "6d06df73336dfcd668ab7cbf998a43488616a608a197df4deaae0869ba58a048"
+    },
+    {
+      "path": "tests/test_detection.py",
+      "status": "added",
+      "sha256": "15ed92922b0908918a6604d7488fa02283ea6d3d86631ee931d252c4c9badba5"
+    },
+    {
+      "path": "tests/test_detection_data.py",
+      "status": "added",
+      "sha256": "fee5ab2b603801f7b044f245fd329d4719d9d0957e33f6eae9856d09d1e37471"
+    },
+    {
+      "path": "tests/test_detection_evaluation.py",
+      "status": "added",
+      "sha256": "a391664143240320df7ca2a3100fa2b1dc91554169815c34103b2bea30115e7a"
+    },
+    {
+      "path": "tests/test_detection_geometry.py",
+      "status": "added",
+      "sha256": "655fc7fb2890db8dd7c45d97c73f4d019cea23590f4467ee0fc664b61375002a"
+    },
+    {
+      "path": "tests/test_detection_parity.py",
+      "status": "added",
+      "sha256": "eb4a2244d66a7a0a0f23e1f0ff3135ba6772766e476c917e887f778ac54f9fb8"
+    },
+    {
+      "path": "tests/test_fetch_detection.py",
+      "status": "added",
+      "sha256": "c0a3b2121303260349b25ff07a9c476e79d3cac9054738d960ffcbc57eacf39d"
+    },
+    {
+      "path": "tests/test_recipes.py",
+      "status": "modified",
+      "sha256": "140d0a85cce707a5123a4f03c85ddcbb0a850d5a223d4fef4142086aa3ad13c2"
+    }
+  ]
+}

@@ -30,3 +30,7 @@ Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，�
 ## 已增加的维护与扩展基础
 
 [静态内部配方协议](recipes.md) 和 [CPU CI](ci.md) 已加入源码。三套配方继续使用原训练/评估/推理契约，新增配方需源码审查及真实验证，不是上传式插件平台。未来 vision-lab 接入先匹配分类/检测任务和输出语义，再评审发现/业务网关接口；本次未实现业务接入。
+
+## 检测与 mAP 增量
+
+用户明确要求真实 YOLO 目标检测与 mAP，已按独立检测契约实施 `yolox-nano-cat/v1`，不以分类代替检测、不修改 vision-lab。官方 Apache-2.0 YOLOX-Nano 固定源码、从零CPU训练、Open Images Cat 固定128训练/32验证/32测试、官方pycocotools评估、ONNX框预测及版本服务生命周期。实际验收状态和质量限制见 [detection.md](detection.md)，数据许可/来源见 [detection-data.md](detection-data.md)。更多类别、GPU、业务集成和设备验收仍未实施。

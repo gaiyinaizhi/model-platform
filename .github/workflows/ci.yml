@@ -71,7 +71,7 @@ jobs:
       - name: Install the hash-locked CPU stack
         run: |
           python -m venv .venv-fashion
-          .venv-fashion/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-fashion.lock
+          .venv-fashion/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-detection.lock
           .venv-fashion/bin/python -m pip check
       - name: Verify optional dependencies and CPU runtime
         run: |
@@ -82,17 +82,32 @@ jobs:
           import onnxruntime
           import onnxscript
           import torch
+          import PIL
+          import pycocotools.cocoeval
           assert sys.version_info[:3] == (3, 12, 14), sys.version
           assert torch.version.cuda is None, "CPU-only PyTorch is required"
           assert "CPUExecutionProvider" in onnxruntime.get_available_providers()
           for module in (numpy, onnx, onnxruntime, onnxscript, torch):
               print(f"{module.__name__}=={module.__version__}")
           PY
-      - name: Run lightweight ONNX regressions without skipped tests
+      - name: Run offline optional regressions with one explicit real-cache exclusion
         run: |
           .venv-fashion/bin/python - <<'PY'
           import unittest
-          suite = unittest.defaultTestLoader.discover("tests", pattern="test_fashion.py")
+          discovered = unittest.defaultTestLoader.discover("tests")
+          excluded_id = "test_fashion_data.OptionalOfficialCacheTests.test_full_source_is_reverified_offline"
+          def flatten(suite):
+              for test in suite:
+                  if isinstance(test, unittest.TestSuite):
+                      yield from flatten(test)
+                  else:
+                      yield test
+          tests = list(flatten(discovered))
+          excluded = [test for test in tests if test.id() == excluded_id]
+          if len(excluded) != 1:
+              raise SystemExit("Expected exactly one explicitly named official-cache integration test")
+          print("Explicitly excluded real-cache integration: " + excluded_id)
+          suite = unittest.TestSuite(test for test in tests if test.id() != excluded_id)
           result = unittest.TextTestRunner(verbosity=2).run(suite)
           if not result.testsRun or result.skipped or not result.wasSuccessful():
               raise SystemExit("Optional ML tests must run successfully with no skips")

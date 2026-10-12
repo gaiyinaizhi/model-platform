@@ -9,7 +9,7 @@ import re
 from types import MappingProxyType
 from typing import Callable
 
-from . import algorithm, digits, fashion
+from . import algorithm, digits, fashion, detection
 from .common import CONTRACT, RECIPE, MAX_BODY, Problem, features, validate_binary_request
 
 
@@ -45,6 +45,26 @@ class RecipeSpec:
     validate_features: Callable
     train: Callable | None = None
     validate_model: Callable | None = None
+    probe_input: Callable | None = None
+    probe_output: Callable | None = None
+
+    def readiness_input(self, dimensions):
+        return self.probe_input() if self.probe_input else [[0] * dimensions]
+
+    def validate_readiness(self, predictions):
+        if self.probe_output:
+            return self.probe_output(predictions)
+        if not isinstance(predictions, list) or len(predictions) != 1:
+            raise ValueError("Invalid probe batch")
+        output = predictions[0]
+        if self.classes > 2:
+            ps = output["probabilities"]
+            if (type(output["class"]) is not int or output["class"] not in range(self.classes)
+                    or len(ps) != self.classes or not all(0 <= p <= 1 for p in ps)
+                    or abs(sum(ps) - 1) > 1e-8):
+                raise ValueError("Invalid classification probe output")
+        elif output["class"] not in (0, 1) or not 0 <= output["probability"] <= 1:
+            raise ValueError("Invalid binary probe output")
 
     def counts(self, dataset):
         if self.data_mode == "fixed-reference":
@@ -69,6 +89,15 @@ def _numeric(*args):
 def _fashion(*args):
     from .recipe_execution import execute_fashion
     return execute_fashion(*args)
+
+
+def _detection(*args):
+    from .detection_training import train_export
+    from .algorithm import TrainingFailure
+    try:
+        return train_export(*args)
+    except ImportError:
+        raise TrainingFailure("optional_dependencies_missing") from None
 
 
 def _binary_features(xs, dimensions):
@@ -99,7 +128,7 @@ def build_registry(specs):
             raise ValueError("Duplicate recipe, format or contract")
         if not re.fullmatch(r"[a-z][a-z0-9-]*/v[1-9][0-9]*", spec.id):
             raise ValueError("Invalid versioned recipe ID")
-        if type(spec.classes) is not int or spec.data_mode not in ("inline", "fixed-reference") or spec.classes < 2:
+        if type(spec.classes) is not int or spec.data_mode not in ("inline", "fixed-reference") or spec.classes < 1:
             raise ValueError("Invalid recipe metadata")
         if not isinstance(spec.budgets, Budgets) or any(
                 type(value) is not int or value <= 0
@@ -122,6 +151,12 @@ def build_registry(specs):
             raise ValueError("JSON recipe requires training and model validation together")
         if any(value is not None and not callable(value) for value in (spec.train, spec.validate_model)):
             raise ValueError("Invalid recipe callback")
+        if ((spec.probe_input is None) != (spec.probe_output is None)
+                or any(value is not None and not callable(value)
+                       for value in (spec.probe_input, spec.probe_output))):
+            raise ValueError("Custom readiness requires both input and output callbacks")
+        if spec.classes == 1 and spec.probe_output is None:
+            raise ValueError("Single-class recipe requires a task-specific readiness probe")
         entries[spec.id] = spec
         formats.add(spec.format)
         contracts.add(spec.contract)
@@ -141,6 +176,11 @@ REGISTRY = build_registry((
                "fixed-reference", ("torch", "numpy", "onnx", "onnxruntime", "onnxscript"),
                Budgets(MAX_BODY, 6000, 10000, None, 784, 5, 32, 600, 2 * 1024 * 1024, 120, 120),
                fashion.validate_request, _fashion, fashion.load_model, fashion.predict, _fashion_features),
+    RecipeSpec(detection.RECIPE, detection.CONTRACT, detection.FORMAT, "onnxruntime-cpu/v1", 1,
+               "fixed-reference", ("torch", "numpy", "onnx", "onnxruntime", "Pillow", "pycocotools"),
+               Budgets(MAX_BODY, 128, 32, None, 160 * 160 * 3, 20, 1, 600, detection.MAX_ARTIFACT, 120, 180),
+               detection.validate_request, _detection, detection.load_model, detection.predict, detection.images,
+               probe_input=detection.probe_input, probe_output=detection.probe_output),
 ))
 
 
