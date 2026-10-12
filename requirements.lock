@@ -1,0 +1,2 @@
+# Runtime and tests use only the Python 3.12.14 standard library (cloud-verified).
+# No third-party packages to resolve or install; no network installation required.
