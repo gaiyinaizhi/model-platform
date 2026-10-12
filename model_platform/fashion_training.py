@@ -13,19 +13,22 @@ import time
 
 from .algorithm import TrainingFailure
 from .common import digest
+from .recipes import get_recipe
+
+_BUDGET = get_recipe("fashion-cnn/v1").budgets
 
 
 SEED = 20261012
-TRAIN_COUNT = 6000
+TRAIN_COUNT = _BUDGET.train_rows
 PER_CLASS = 600
-EPOCHS = 5
+EPOCHS = _BUDGET.max_epochs
 LEARNING_RATE = 0.001
 BATCH_SIZE = 128
 CPU_THREADS = 2
-MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
-TRAINING_SECONDS = 600
-EXPORT_SECONDS = 120
-EVALUATION_SECONDS = 120
+MAX_ARTIFACT_BYTES = _BUDGET.artifact_bytes
+TRAINING_SECONDS = _BUDGET.training_seconds
+EXPORT_SECONDS = _BUDGET.export_seconds
+EVALUATION_SECONDS = _BUDGET.evaluation_seconds
 PARITY_TOLERANCE = 1e-4
 
 

@@ -67,7 +67,9 @@ def features(value, dimensions=None, maximum=128, max_dimensions=16):
 
 
 def samples(value, dimensions=None):
-    if not isinstance(value, list) or not 4 <= len(value) <= 1000:
+    from .recipes import get_recipe
+    budget = get_recipe(RECIPE).budgets
+    if not isinstance(value, list) or not 4 <= len(value) <= budget.train_rows:
         raise Problem(400, "invalid_input", "Each split requires 4..1000 samples")
     xs, ys = [], []
     for row in value:
@@ -76,7 +78,7 @@ def samples(value, dimensions=None):
             raise Problem(400, "invalid_input", "Labels must be integer 0 or 1")
         xs.append(row["x"])
         ys.append(row["y"])
-    width = features(xs, dimensions, 1000)
+    width = features(xs, dimensions, budget.train_rows, budget.max_dimensions)
     if set(ys) != {0, 1}:
         raise Problem(400, "invalid_input", "Each split must include both classes")
     return width
@@ -85,44 +87,39 @@ def samples(value, dimensions=None):
 def training_request(body):
     object_fields(body, ("dataset", "config"), ("business_ref", "recipe"))
     data = body["dataset"]
-    recipe = body.get("recipe", RECIPE)
-    from . import digits, fashion
-    if recipe not in (RECIPE, digits.RECIPE, fashion.RECIPE):
-        raise Problem(400, "invalid_input", "Unsupported recipe")
-    if recipe == RECIPE:
-        object_fields(data, ("source", "version", "rights_confirmed", "train", "evaluation"))
-    elif recipe == fashion.RECIPE:
-        fashion.validate_request(data, body["config"])
-    else:
-        digits.validate_request(data, body["config"])
+    from .recipes import get_recipe
+    spec = get_recipe(body.get("recipe", RECIPE))
+    spec.validate_request(data, body["config"])
     text_value(data["source"], "dataset source")
     text_value(data["version"], "dataset version")
     if data["rights_confirmed"] is not True:
         raise Problem(400, "invalid_input", "Legal data usage confirmation required")
     if "business_ref" in body:
         text_value(body["business_ref"], "business_ref")
-    if recipe in (digits.RECIPE, fashion.RECIPE):
-        return body
+    if len(encode(body)) > spec.budgets.request_bytes:
+        raise Problem(413, "too_large", "Recipe request budget exceeded")
+    return body
+
+
+def validate_binary_request(data, config):
+    from .recipes import get_recipe
+    budget = get_recipe(RECIPE).budgets
+    object_fields(data, ("source", "version", "rights_confirmed", "train", "evaluation"))
     width = samples(data["train"])
     samples(data["evaluation"], width)
-    if len(data["train"]) + len(data["evaluation"]) > 1000:
+    if len(data["train"]) + len(data["evaluation"]) > budget.total_rows:
         raise Problem(400, "invalid_input", "At most 1000 samples in total")
     train_x = {tuple(row["x"]) for row in data["train"]}
     if any(tuple(row["x"]) in train_x for row in data["evaluation"]):
         raise Problem(400, "invalid_input", "Training/evaluation features overlap")
-    config = body["config"]
     object_fields(config, ("epochs", "learning_rate"))
-    if type(config["epochs"]) is not int or not 1 <= config["epochs"] <= 200:
+    if type(config["epochs"]) is not int or not 1 <= config["epochs"] <= budget.max_epochs:
         raise Problem(400, "invalid_input", "epochs must be integer 1..200")
     number(config["learning_rate"], 0.001, 1.0)
-    if len(encode(body)) > 1024 * 1024:
-        raise Problem(413, "too_large", "Binary request budget exceeded")
-    if "business_ref" in body:
-        text_value(body["business_ref"], "business_ref")
-    return body
 
 
 def environment():
+    from .recipes import recipe_ids
     root = Path(__file__).parent
     code = hashlib.sha256()
     for path in sorted(root.glob("*.py")):
@@ -130,7 +127,7 @@ def environment():
         code.update(path.read_bytes())
     return {"python": platform.python_version(), "platform": platform.platform(),
             "code_sha256": code.hexdigest(), "dependencies": "base=stdlib-only; optional recipe dependencies recorded in manifest",
-            "supported_recipes": [RECIPE, "softmax-digits/v1", "fashion-cnn/v1"]}
+            "supported_recipes": recipe_ids()}
 
 
 class Runtime:

@@ -117,3 +117,32 @@ stop verified: subsequent inference rejected (503)
 - 全21个实际安装依赖版本与hash lock一致，21个官方wheel共252,708,049字节下载hash验证通过；pip check通过，torch cuda=None
 - 核心源码SHA256 `dd74a334d6d165edf4c5f4e8eb0f4e287a09f866acb6deea4392d32156da193f` 与真实训练报告一致；测试/文档后续编辑不改模型核心源码
 - 没有测试外部部署、GPU/设备兼容性、硬资源沙箱或生产多租户；该阶段不新增这些承诺
+
+## 静态配方注册与 CPU CI 回归（2026-10-12）
+
+协议见 [recipes.md](recipes.md)，工作流与本地逐步验证见 [ci.md](ci.md)，精简可机器读取证据见 [registry-verification.json](registry-verification.json)。没有新增公开发现/插件上传接口；三套现有 HTTP 契约不变。
+
+最终模型执行源码摘要为 `e77573939e0850d00a34892d9f72b752c63f6d16b419ff8a1999f94c3d9f1515`；下列最终测试与三条真实 demo 均在该摘要冻结后执行，未在 Worker 运行时修改源码。
+
+- `.venv/bin/python -m compileall -q model_platform scripts tests`：通过
+- `.venv/bin/python -m unittest discover -s tests -v`：91 项，80 通过、11 预期 skip（10 个可选 ONNX、1 个需 NumPy/官方缓存），无失败，18.323 秒
+- `.venv-fashion/bin/python -m unittest discover -s tests -v`：91/91 通过、零 skip，24.001 秒；此完整本地执行具有已核验官方数据缓存
+- 工作流的可选 ONNX 无 skip runner：17/17 通过，5.635 秒，不下载数据、不训练 CNN
+- 新增 `test_recipes.py` 16 项：静态注册唯一性/非法注册、冻结对象、目录副本、未知/非字符串/path recipe HTTP 400、旧请求原始摘要与幂等、各配方预算、无 ML 导入、缺依赖失败 → 显式 retry → 中断恢复 → attempt 上限；缺可选库后基础配方仍真实训练成功
+- 工作流全部 shell 步骤还在新建隔离 venv 中执行；现有 21 项可选依赖重新下载并通过 hash 安装、`pip check` 和 CPU import 检查。负向验证确保无库/skip不会变为可选 job 的假通过。Action SHA 已核对官方 release commit，YAML/shell/权限结构检查通过
+
+### 真实数据与产物兼容
+
+使用新私有运行目录，复制已有公开缓存并按原脚本重新校验固定官方字节摘要；没有新外部数据下载。启动 API 和独立 Worker，实际依次运行 `scripts/demo.py`、`scripts/demo_digits.py`、`scripts/demo_fashion.py`，三条均成功。Fashion 本次确实从零重训并导出、评估，不是复用上次结果：
+
+| 配方 | 实际训练/评估范围 | 本次质量 | 与变更前权重字节 |
+| --- | --- | --- | --- |
+| 二分类 | 无敏感合成数值 demo，4 行独立留出 | accuracy 1.0；log loss 0.1074255454 | SHA-256 完全一致 |
+| UCI digits | 官方完整3823训练 / 1797最终测试 | accuracy 0.9499165275；macro-F1 0.9501111995 | SHA-256 完全一致 |
+| Fashion CNN | 官方固定分层6000训练 / 完整10000最终测试 | accuracy 0.8076；macro-F1 0.8048124060 | SHA-256 完全一致 |
+
+Fashion ONNX/PyTorch 全10000 test 的 argmax agreement 为 1.0，最大绝对 logit 误差 `1.33514404296875e-05`，低于 `1e-4`。数字/Fashion各实际持续调用10次且预测稳定，版本与产物绑定正确；三配方显式停止后预测均返回503。质量不是生产或设备验收，时延不是性能基准。
+
+另外用新 API/serving 直接加载变更前持久化的三套已登记模型；不重写旧 manifest，实际预测、停止及停止后503都通过，旧模型的代码血缘 `dd74a334d6d165edf4c5f4e8eb0f4e287a09f866acb6deea4392d32156da193f` 保持不变。临时 API、Worker、serving 均已终结，验证创建的部署均 stopped。
+
+未在本阶段执行 GitHub 托管 Actions；本地通过不等于远端 CI 已通过。没有 commit、push、merge、部署或修改远端配置。本阶段不实现 vision-lab 接入。

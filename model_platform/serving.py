@@ -6,7 +6,6 @@ import socket
 import sys
 from http.server import HTTPServer
 
-from .algorithm import load_model, predict
 from .common import CONTRACT, Problem, object_fields
 from .http_support import JsonHandler
 from .store import Store
@@ -22,13 +21,11 @@ def serve(runtime, deployment_id, fd, parent_pid):
     if not row:
         raise RuntimeError("Deployment no longer requested")
     manifest = store.model(row["tenant"], row["model_version_id"])
-    if manifest["format"] == "fashion-onnx/v1":
-        from .fashion import load_model as loader
-    else:
-        loader = load_model
+    from .recipes import for_manifest
+    spec = for_manifest(manifest)
     if manifest["artifact_id"] != manifest["attempt_id"]:
         raise ValueError("Invalid artifact binding")
-    model = loader(runtime.artifact(manifest["attempt_id"]), manifest["artifact_sha256"])
+    model = spec.load(runtime.artifact(manifest["attempt_id"]), manifest["artifact_sha256"])
     if any(model[key] != manifest[key] for key in ("recipe", "contract", "format", "dimensions")):
         raise ValueError("Model manifest contract mismatch")
 
@@ -45,7 +42,7 @@ def serve(runtime, deployment_id, fd, parent_pid):
                     raise Problem(503, "parent_gone", "Supervisor no longer alive")
                 body = self.body()
                 object_fields(body, ("features",))
-                result = predict(model, body["features"])
+                result = spec.predict(model, body["features"])
                 self.respond(200, {"deployment_id": deployment_id, "model_version_id": manifest["model_version_id"],
                                    "artifact_sha256": manifest["artifact_sha256"], "contract": model["contract"], "predictions": result})
             except Problem as exc:

@@ -80,6 +80,8 @@ API / Worker 通过各自终端的 Ctrl+C 停止。API 正常退出会终结自�
 
 ## 验证
 
+已加入 [静态内部配方扩展协议](docs/recipes.md) 和 [双层 CPU CI](docs/ci.md)：基础标准库全套回归与独立可选 ONNX 轻量回归，不在每个 PR 下载官方数据或重训 CNN。
+
 ```sh
 .venv/bin/python -m compileall -q model_platform scripts tests
 .venv/bin/python -m unittest discover -s tests -v

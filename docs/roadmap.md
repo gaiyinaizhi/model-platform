@@ -26,3 +26,7 @@ UCI Optical Recognition of Handwritten Digits 官方完整3823训练/1797测试�
 ## 已增加的深度学习 CPU 首例
 
 Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，独立完整10000 test最终评估；可选CPU PyTorch、ONNX导出与双后端全test一致性、不可变登记及ONNX Runtime持续推理/停止/恢复已验收。准确率80.76%；详细契约、限制及证据见[fashion.md](fashion.md)。尚无任意图像上传、GPU、设备运行包或实机验证。
+
+## 已增加的维护与扩展基础
+
+[静态内部配方协议](recipes.md) 和 [CPU CI](ci.md) 已加入源码。三套配方继续使用原训练/评估/推理契约，新增配方需源码审查及真实验证，不是上传式插件平台。未来 vision-lab 接入先匹配分类/检测任务和输出语义，再评审发现/业务网关接口；本次未实现业务接入。

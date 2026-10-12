@@ -96,10 +96,12 @@ class Store:
             row = self._owned(db, "runs", tenant, run_id)
             body = json.loads(row["input_json"])
             result = {k: row[k] for k in ("id", "status", "created_at", "updated_at", "request_sha256", "model_version_id")}
+            from .recipes import get_recipe
+            train_count, evaluation_count = get_recipe(body.get("recipe", RECIPE)).counts(body["dataset"])
             result.update(recipe=body.get("recipe", RECIPE), environment=json.loads(row["environment_json"]),
                           dataset={"source": body["dataset"]["source"], "version": body["dataset"]["version"],
-                                   "sha256": digest(body["dataset"]), "train_count": (6000 if body.get("recipe") == "fashion-cnn/v1" else len(body["dataset"]["train"])),
-                                   "evaluation_count": (10000 if body.get("recipe") == "fashion-cnn/v1" else len(body["dataset"]["evaluation"]))}, config=body["config"],
+                                   "sha256": digest(body["dataset"]), "train_count": train_count,
+                                   "evaluation_count": evaluation_count}, config=body["config"],
                           business_ref=body.get("business_ref"), attempts=[])
             for attempt in db.execute("SELECT * FROM attempts WHERE run_id=? ORDER BY number", (run_id,)):
                 item = dict(attempt)
@@ -219,7 +221,10 @@ class Store:
         with self.runtime.connection() as db:
             row = dict(self._owned(db, "deployments", tenant, deployment_id))
             model = self._owned(db, "models", tenant, row["model_version_id"])
-            row.update(contract=json.loads(model["manifest_json"])["contract"], runtime=("onnxruntime-cpu/v1" if json.loads(model["manifest_json"])["format"] == "fashion-onnx/v1" else "python-cpu-json/v1"), resources={"processes": 1, "gpu": 0,
+            from .recipes import REGISTRY
+            manifest = json.loads(model["manifest_json"])
+            runtime = next((spec.runtime for spec in REGISTRY.values() if spec.format == manifest["format"]), "unknown")
+            row.update(contract=manifest["contract"], runtime=runtime, resources={"processes": 1, "gpu": 0,
                        "hard_cpu_memory_isolation": False}, ready=row["observed"] == "ready" and row["desired"] == "running",
                        endpoint=f"/deployments/{deployment_id}/predict")
             return row

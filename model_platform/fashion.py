@@ -27,7 +27,9 @@ def validate_request(data, config):
 
 
 def pixels(xs):
-    if not isinstance(xs, list) or not 1 <= len(xs) <= 32:
+    from .recipes import get_recipe
+    budget = get_recipe(RECIPE).budgets
+    if not isinstance(xs, list) or not 1 <= len(xs) <= budget.prediction_rows:
         raise Problem(400, 'invalid_input', 'Fashion inference requires 1..32 images')
     for row in xs:
         if not isinstance(row, list) or len(row) != 784 or any(type(p) is not int or not 0 <= p <= 255 for p in row):
@@ -35,13 +37,15 @@ def pixels(xs):
 
 
 def load_model(path, expected_hash):
+    from .recipes import get_recipe
+    artifact_limit = get_recipe(RECIPE).budgets.artifact_bytes
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, 'rb') as stream:
         info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_ARTIFACT:
+        if not stat.S_ISREG(info.st_mode) or info.st_size > artifact_limit:
             raise ValueError('Invalid artifact file type or size')
-        content = stream.read(MAX_ARTIFACT + 1)
-    if len(content) > MAX_ARTIFACT or hashlib.sha256(content).hexdigest() != expected_hash:
+        content = stream.read(artifact_limit + 1)
+    if len(content) > artifact_limit or hashlib.sha256(content).hexdigest() != expected_hash:
         raise ValueError('Artifact integrity check failed')
     # Only hash-verified, registered, self-generated ONNX reaches this parser.
     import onnx

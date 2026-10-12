@@ -8,15 +8,18 @@ from .common import digest, environment
 
 def evaluate(path, artifact_hash, rows, execution_environment=None):
     model = load_model(path, artifact_hash)
+    from .recipes import get_recipe
+    spec = get_recipe(model["recipe"])
+    batch_size = spec.budgets.prediction_rows
     # Evaluation may use most of the 1,000-row dataset budget. Keep the
     # independent online inference limit by evaluating in bounded batches.
     started = time.monotonic()
     outputs = []
-    for offset in range(0, len(rows), 128):
-        outputs.extend(predict(model, [row["x"] for row in rows[offset:offset + 128]]))
+    for offset in range(0, len(rows), batch_size):
+        outputs.extend(predict(model, [row["x"] for row in rows[offset:offset + batch_size]]))
     inference_seconds = time.monotonic() - started
-    multiclass = model["contract"] == "digits-64x10/v1"
-    classes = 10 if multiclass else 2
+    classes = spec.classes
+    multiclass = classes > 2
     confusion = [[0] * classes for _ in range(classes)]
     loss = 0.0
     for row, output in zip(rows, outputs):

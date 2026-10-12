@@ -21,6 +21,8 @@ def sigmoid(z):
 
 
 def train(rows, config, log):
+    from .recipes import get_recipe
+    budget = get_recipe(RECIPE).budgets
     width, count = len(rows[0]["x"]), len(rows)
     means = [sum(row["x"][j] for row in rows) / count for j in range(width)]
     # Scaled Euclidean norm avoids underflow when valid nonconstant inputs
@@ -44,21 +46,30 @@ def train(rows, config, log):
         bias -= rate * bias_gradient
         if (epoch + 1) % 20 == 0 or epoch + 1 == config["epochs"]:
             log("train_progress", {"epoch": epoch + 1, "total_epochs": config["epochs"]})
-        if time.monotonic() - start > 60:
+        if time.monotonic() - start > budget.training_seconds:
             raise TrainingFailure("training_timeout")
     return {"format": "logistic-json/v1", "recipe": RECIPE, "contract": CONTRACT,
             "dimensions": width, "weights": weights, "bias": bias, "means": means, "scales": scales}
 
 
 def validate_model(model):
-    from . import digits
-    if isinstance(model, dict) and model.get("recipe") == digits.RECIPE:
-        return digits.validate_model(model)
+    from .recipes import get_recipe
+    if not isinstance(model, dict):
+        raise ValueError("Invalid model")
+    spec = get_recipe(model.get("recipe"))
+    if spec.validate_model is None:
+        raise ValueError("Recipe does not accept JSON models")
+    return spec.validate_model(model)
+
+
+def validate_binary_model(model):
+    from .recipes import get_recipe
+    budget = get_recipe(RECIPE).budgets
     object_fields(model, ("format", "recipe", "contract", "dimensions", "weights", "bias", "means", "scales"))
     if model["format"] != "logistic-json/v1" or model["recipe"] != RECIPE or model["contract"] != CONTRACT:
         raise ValueError("Unsupported model contract")
     width = model["dimensions"]
-    if type(width) is not int or not 1 <= width <= 16:
+    if type(width) is not int or not 1 <= width <= budget.max_dimensions:
         raise ValueError("Invalid model dimensions")
     for key in ("weights", "means", "scales"):
         if not isinstance(model[key], list) or len(model[key]) != width:
@@ -70,22 +81,29 @@ def validate_model(model):
 
 
 def load_model(path, expected_hash):
+    from .recipes import REGISTRY, get_recipe
+    # Bound bytes before parsing, then enforce the selected JSON recipe budget.
+    maximum = max(spec.budgets.artifact_bytes for spec in REGISTRY.values() if spec.validate_model is not None)
     if path.is_symlink():
         raise ValueError("Symlink artifacts are not supported")
     with path.open("rb") as stream:
-        content = stream.read(32769)
-    if len(content) > 32768 or hashlib.sha256(content).hexdigest() != expected_hash:
+        content = stream.read(maximum + 1)
+    if len(content) > maximum or hashlib.sha256(content).hexdigest() != expected_hash:
         raise ValueError("Artifact integrity check failed")
-    return validate_model(json.loads(content))
+    model = validate_model(json.loads(content))
+    if len(content) > get_recipe(model["recipe"]).budgets.artifact_bytes:
+        raise ValueError("Recipe artifact budget exceeded")
+    return model
 
 
 def predict(model, xs):
-    from . import digits, fashion
-    if model["recipe"] == fashion.RECIPE:
-        return fashion.predict(model, xs)
-    if model["recipe"] == digits.RECIPE:
-        return digits.predict(model, xs)
-    features(xs, model["dimensions"])
+    from .recipes import get_recipe
+    return get_recipe(model["recipe"]).predict(model, xs)
+
+
+def predict_binary(model, xs):
+    from .recipes import get_recipe
+    get_recipe(RECIPE).validate_features(xs, model["dimensions"])
     outputs = []
     for x in xs:
         z = model["bias"] + sum(w * (v - mean) / scale for w, v, mean, scale in
@@ -96,7 +114,10 @@ def predict(model, xs):
 
 
 def write_model(path, model):
+    from .recipes import get_recipe
     content = encode(validate_model(model))
+    if len(content) > get_recipe(model["recipe"]).budgets.artifact_bytes:
+        raise ValueError("Recipe artifact budget exceeded")
     # Unique attempt ID; exclusive create never overwrites an existing artifact.
     with path.open("xb") as stream:
         stream.write(content)

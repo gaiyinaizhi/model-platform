@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 from .common import (CONTRACT, MAX_ACTIVE_RUNS, MAX_DEPLOYMENTS, Problem,
                      RECIPE, object_fields, text_value, training_request)
 from .http_support import BoundedHTTPServer, JsonHandler
+from .recipes import recipe_ids
 from .store import Store
 from .supervisor import Supervisor
 
@@ -78,7 +79,7 @@ def make_handler(store, supervisor, auth):
         def route(self, method, parts, tenant):
             if method == "GET" and parts == ["health"]:
                 return 200, {"status": "ok", "recipe": RECIPE, "contract": CONTRACT, "cancel_supported": False,
-                             "recipes": [RECIPE, "softmax-digits/v1", "fashion-cnn/v1"],
+                             "recipes": recipe_ids(),
                              "budgets": {"active_runs": MAX_ACTIVE_RUNS, "deployments": MAX_DEPLOYMENTS}}
             if len(parts) == 1 and parts[0] in ("runs", "models", "deployments"):
                 if method == "GET":

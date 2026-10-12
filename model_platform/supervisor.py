@@ -81,9 +81,11 @@ class Supervisor:
         try:
             result = self.call(instance, [[0] * instance.manifest["dimensions"]])
             output = result["predictions"][0]
-            if instance.manifest["contract"] in ("digits-64x10/v1", "fashion-28x28x10/v1"):
+            from .recipes import for_manifest
+            spec = for_manifest(instance.manifest)
+            if spec.classes > 2:
                 ps = output["probabilities"]
-                if output["class"] not in range(10) or len(ps) != 10 or not all(0 <= p <= 1 for p in ps) or abs(sum(ps) - 1) > 1e-8:
+                if output["class"] not in range(spec.classes) or len(ps) != spec.classes or not all(0 <= p <= 1 for p in ps) or abs(sum(ps) - 1) > 1e-8:
                     raise ValueError("Invalid digits probe output")
             elif output["class"] not in (0, 1) or not 0 <= output["probability"] <= 1:
                 raise ValueError("Invalid probe output")
@@ -141,15 +143,8 @@ class Supervisor:
             instance = self.instances.get(deployment_id)
             if row["desired"] != "running" or not instance or not self._probe(deployment_id, instance):
                 raise Problem(503, "not_ready", "Deployment is not actually ready")
-            from .common import features
-            if instance.manifest["contract"] == "digits-64x10/v1":
-                from .digits import pixels
-                pixels(xs)
-            elif instance.manifest["contract"] == "fashion-28x28x10/v1":
-                from .fashion import pixels
-                pixels(xs)
-            else:
-                features(xs, instance.manifest["dimensions"])
+            from .recipes import for_manifest
+            for_manifest(instance.manifest).validate_features(xs, instance.manifest["dimensions"])
             try:
                 return self.call(instance, xs)
             except Exception:

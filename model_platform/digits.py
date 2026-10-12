@@ -11,7 +11,10 @@ FORMAT = "softmax-json/v1"
 SOURCE_URL = "https://archive.ics.uci.edu/dataset/80/optical+recognition+of+handwritten+digits"
 
 
-def pixels(xs, maximum=128):
+def pixels(xs, maximum=None):
+    from .recipes import get_recipe
+    if maximum is None:
+        maximum = get_recipe(RECIPE).budgets.prediction_rows
     features(xs, 64, maximum, max_dimensions=64)
     for row in xs:
         for value in row:
@@ -20,6 +23,8 @@ def pixels(xs, maximum=128):
 
 
 def validate_request(data, config):
+    from .recipes import get_recipe
+    budget = get_recipe(RECIPE).budgets
     import re
     object_fields(data, ("source", "version", "rights_confirmed", "train", "evaluation", "provenance"))
     provenance = data["provenance"]
@@ -30,7 +35,7 @@ def validate_request(data, config):
         if not isinstance(provenance[key], str) or not re.fullmatch("[0-9a-f]{64}", provenance[key]):
             raise Problem(400, "invalid_input", "Invalid source checksum")
     # No feature deduplication: official writer-disjoint records can quantize alike.
-    for split, maximum in (("train", 3823), ("evaluation", 1797)):
+    for split, maximum in (("train", budget.train_rows), ("evaluation", budget.evaluation_rows)):
         rows = data[split]
         if not isinstance(rows, list) or not 10 <= len(rows) <= maximum:
             raise Problem(400, "invalid_input", "Digits split exceeds recipe budget or lacks classes")
@@ -42,7 +47,7 @@ def validate_request(data, config):
         if {r["y"] for r in rows} != set(range(10)):
             raise Problem(400, "invalid_input", "Each split must contain all ten classes")
     object_fields(config, ("epochs", "learning_rate", "seed"))
-    if type(config["epochs"]) is not int or not 1 <= config["epochs"] <= 60:
+    if type(config["epochs"]) is not int or not 1 <= config["epochs"] <= budget.max_epochs:
         raise Problem(400, "invalid_input", "Digits epochs must be integer 1..60")
     number(config["learning_rate"], 0.001, 0.1)
     if type(config["seed"]) is not int or not 0 <= config["seed"] <= 2**32 - 1:
@@ -58,6 +63,8 @@ def probabilities(weights, biases, x):
 
 
 def train(rows, config, log):
+    from .recipes import get_recipe
+    budget = get_recipe(RECIPE).budgets
     from .algorithm import TrainingFailure
     if all(row["x"] == rows[0]["x"] for row in rows):
         raise TrainingFailure("degenerate_features")
@@ -78,7 +85,7 @@ def train(rows, config, log):
                 ws = weights[label]
                 for j, v in enumerate(x):
                     ws[j] -= delta * v
-            if time.monotonic() - start > 120:
+            if time.monotonic() - start > budget.training_seconds:
                 raise TrainingFailure("training_timeout")
         log("train_progress", {"epoch": epoch + 1, "total_epochs": config["epochs"]})
     return {"format": FORMAT, "recipe": RECIPE, "contract": CONTRACT, "dimensions": 64,
