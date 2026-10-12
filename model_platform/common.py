@@ -86,11 +86,13 @@ def training_request(body):
     object_fields(body, ("dataset", "config"), ("business_ref", "recipe"))
     data = body["dataset"]
     recipe = body.get("recipe", RECIPE)
-    from . import digits
-    if recipe not in (RECIPE, digits.RECIPE):
+    from . import digits, fashion
+    if recipe not in (RECIPE, digits.RECIPE, fashion.RECIPE):
         raise Problem(400, "invalid_input", "Unsupported recipe")
     if recipe == RECIPE:
         object_fields(data, ("source", "version", "rights_confirmed", "train", "evaluation"))
+    elif recipe == fashion.RECIPE:
+        fashion.validate_request(data, body["config"])
     else:
         digits.validate_request(data, body["config"])
     text_value(data["source"], "dataset source")
@@ -99,7 +101,7 @@ def training_request(body):
         raise Problem(400, "invalid_input", "Legal data usage confirmation required")
     if "business_ref" in body:
         text_value(body["business_ref"], "business_ref")
-    if recipe == digits.RECIPE:
+    if recipe in (digits.RECIPE, fashion.RECIPE):
         return body
     width = samples(data["train"])
     samples(data["evaluation"], width)
@@ -127,8 +129,8 @@ def environment():
         code.update(path.name.encode())
         code.update(path.read_bytes())
     return {"python": platform.python_version(), "platform": platform.platform(),
-            "code_sha256": code.hexdigest(), "dependencies": "stdlib-only",
-            "supported_recipes": [RECIPE, "softmax-digits/v1"]}
+            "code_sha256": code.hexdigest(), "dependencies": "base=stdlib-only; optional recipe dependencies recorded in manifest",
+            "supported_recipes": [RECIPE, "softmax-digits/v1", "fashion-cnn/v1"]}
 
 
 class Runtime:

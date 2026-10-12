@@ -80,7 +80,9 @@ def load_model(path, expected_hash):
 
 
 def predict(model, xs):
-    from . import digits
+    from . import digits, fashion
+    if model["recipe"] == fashion.RECIPE:
+        return fashion.predict(model, xs)
     if model["recipe"] == digits.RECIPE:
         return digits.predict(model, xs)
     features(xs, model["dimensions"])

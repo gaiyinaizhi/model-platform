@@ -22,7 +22,15 @@ def serve(runtime, deployment_id, fd, parent_pid):
     if not row:
         raise RuntimeError("Deployment no longer requested")
     manifest = store.model(row["tenant"], row["model_version_id"])
-    model = load_model(runtime.artifact(manifest["attempt_id"]), manifest["artifact_sha256"])
+    if manifest["format"] == "fashion-onnx/v1":
+        from .fashion import load_model as loader
+    else:
+        loader = load_model
+    if manifest["artifact_id"] != manifest["attempt_id"]:
+        raise ValueError("Invalid artifact binding")
+    model = loader(runtime.artifact(manifest["attempt_id"]), manifest["artifact_sha256"])
+    if any(model[key] != manifest[key] for key in ("recipe", "contract", "format", "dimensions")):
+        raise ValueError("Model manifest contract mismatch")
 
     class Handler(JsonHandler):
         def do_POST(self):

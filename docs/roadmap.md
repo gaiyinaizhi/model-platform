@@ -22,3 +22,7 @@
 ## 已增加的真实数据首例
 
 UCI Optical Recognition of Handwritten Digits 官方完整3823训练/1797测试，64数值特征十分类；独立softmax配方，保留合成二分类回归。数据下载、许可、逐文件摘要、重复审计和可复现运行见[digits.md](digits.md)。该首例是预提取特征CPU训练/评估/持续推理，仍不代表原图视觉网络或设备能力。
+
+## 已增加的深度学习 CPU 首例
+
+Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，独立完整10000 test最终评估；可选CPU PyTorch、ONNX导出与双后端全test一致性、不可变登记及ONNX Runtime持续推理/停止/恢复已验收。准确率80.76%；详细契约、限制及证据见[fashion.md](fashion.md)。尚无任意图像上传、GPU、设备运行包或实机验证。

@@ -45,7 +45,8 @@ class Supervisor:
                 raise ValueError("Internal response too large")
             result = json.loads(raw)
         if (result.get("model_version_id") != instance.manifest["model_version_id"] or
-                result.get("artifact_sha256") != instance.manifest["artifact_sha256"]):
+                result.get("artifact_sha256") != instance.manifest["artifact_sha256"] or
+                result.get("contract") != instance.manifest["contract"]):
             raise ValueError("Serving version mismatch")
         return result
 
@@ -80,7 +81,7 @@ class Supervisor:
         try:
             result = self.call(instance, [[0] * instance.manifest["dimensions"]])
             output = result["predictions"][0]
-            if instance.manifest["contract"] == "digits-64x10/v1":
+            if instance.manifest["contract"] in ("digits-64x10/v1", "fashion-28x28x10/v1"):
                 ps = output["probabilities"]
                 if output["class"] not in range(10) or len(ps) != 10 or not all(0 <= p <= 1 for p in ps) or abs(sum(ps) - 1) > 1e-8:
                     raise ValueError("Invalid digits probe output")
@@ -143,6 +144,9 @@ class Supervisor:
             from .common import features
             if instance.manifest["contract"] == "digits-64x10/v1":
                 from .digits import pixels
+                pixels(xs)
+            elif instance.manifest["contract"] == "fashion-28x28x10/v1":
+                from .fashion import pixels
                 pixels(xs)
             else:
                 features(xs, instance.manifest["dimensions"])

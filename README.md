@@ -2,7 +2,7 @@
 
 供 `visionlab`、教学平台、机器人和无人机等独立产品复用的 Python 模型训练、评估、技术登记与推理运行核心。
 
-**状态：2026-10-12，首版可信本地 CPU 闭环已实现并在 Linux / Python 3.12.14 验证。** 保留首版小型数值二分类回归，并新增 UCI 官方全量手写数字十分类 CPU 配方（[数据、许可及运行指南](docs/digits.md)）：真实优化逻辑回归参数、从 JSON 产物重新加载并进行独立留出评估，再运行持续 CPU 推理子进程。不是视觉模型、无人机能力、实机安全或生产多租户验收。
+**状态：2026-10-12，首版可信本地 CPU 闭环已实现并在 Linux / Python 3.12.14 验证。** 保留首版小型数值二分类回归，并新增 UCI 官方全量手写数字十分类 CPU 配方（[数据、许可及运行指南](docs/digits.md)）：真实优化逻辑回归参数、从 JSON 产物重新加载并进行独立留出评估，再运行持续 CPU 推理子进程。新增可选 [Fashion-MNIST 小型 CNN / ONNX CPU 切片](docs/fashion.md)；该增量的实际验证状态单独记录，不代表无人机能力、实机安全或生产多租户验收。
 
 ## 独立运行与职责边界
 
@@ -15,7 +15,8 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 - 标准库 HTTP API + SQLite WAL 事务队列；API 不执行训练，独立 Worker 顺序领取任务
 - 兼容配方 `logistic-regression/v1`，真实梯度训练、训练集拟合标准化参数、独立留出集实际计算 accuracy / log loss / confusion
 - 独立配方 `softmax-digits/v1`：64 个 0..16 整数特征、10 类，确定性 softmax SGD；官方 3823/1797 划分全量保留，accuracy / macro-F1 / 10×10 confusion / log loss
-- JSON 模型及 SHA-256、数据快照摘要、代码/环境/配置血缘；评估与模型技术记录逻辑不可变
+- JSON数值模型及可选ONNX图像模型、SHA-256、数据快照摘要、代码/环境/配置血缘；评估与模型技术记录逻辑不可变
+- 可选`fashion-cnn/v1`：官方Fashion-MNIST固定分层6000训练/完整10000 test，小CNN从零训练、ONNX一致性验证与独立CPU持续服务，细节见[Fashion指南](docs/fashion.md)
 - 幂等提交、输入/大小/速率/队列预算、失败日志、最多 3 次执行尝试，重试保留失败历史
 - 每部署一个独立 CPU 推理进程，绑定明确模型版本；实际预测探测 ready，停止进程后拒绝预测
 - API 崩溃后的持久化期望状态恢复；Worker 中断在下次启动登记为 failed，显式重试，不静默重训
@@ -23,8 +24,8 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 ## 环境要求
 
 - Linux 或支持 `fcntl.flock`、Unix 文件描述符继承及进程信号的系统；本次云端验收为 Linux x86_64
-- **本次固定并实测 Python 3.12.14**，见 `.python-version`；标准库包含 SQLite，不需要安装第三方包或联网下载
-- `requirements.lock` 声明零第三方依赖，不是 Python 解释器二进制锁；没有宣称完整 Python 版本矩阵或 Windows 支持
+- **本次固定并实测 Python 3.12.14**，见 `.python-version`；二分类/UCI核心标准库包含 SQLite，不需要第三方包。Fashion配方额外依赖见可选 `requirements-fashion.lock`，无需GPU或CUDA
+- `requirements.lock` 声明基础配方零第三方依赖，不是 Python 解释器二进制锁；没有宣称完整 Python 版本矩阵或 Windows 支持
 - 所有命令从仓库根目录运行。API 固定绑定 `127.0.0.1`，仅在当前机器可访问；不要将开发 HTTP 服务反向代理或暴露到公网
 
 ## 快速运行
@@ -93,7 +94,7 @@ API / Worker 通过各自终端的 Ctrl+C 停止。API 正常退出会终结自�
 - 取消返回 501；没有检查点恢复、自动训练重试、版本热切流、自动回滚或质量发布门槛；更新版本需新部署 ID
 - serving 崩溃会撤销 ready，不在同一个 supervisor 生命周期自动重启；API 重启按 desired 状态重新验证启动
 - SQLite 单机运行，没有分布式队列、自动数据保留/清理、备份恢复验收或断电耐久性保证；未登记的孤儿产物不会被部署，也不会自动删除
-- 只有预提取 8×8 数值特征的数字配方，没有原图上传/视觉网络、设备转换包、机器人/无人机适配、外部模型导入、厂商 endpoint 或 Sluggard 接口；后续能力见 [路线图](docs/roadmap.md)
+- 图像配方限定固定公开Fashion-MNIST 28×28灰度图CPU小CNN；没有任意原图上传、设备转换包、机器人/无人机适配、外部模型导入、厂商 endpoint 或 Sluggard 接口；后续能力见 [路线图](docs/roadmap.md)
 
 ## 目录与贡献
 
@@ -102,6 +103,8 @@ model_platform/       API、队列、算法、评估、Worker、推理与生命�
 scripts/demo.py       真实合成数值 CPU 闭环演示
 scripts/fetch_digits.py 官方完整数字数据下载与校验
 scripts/demo_digits.py 完整官方数字 CPU 闭环演示
+scripts/fetch_fashion.py 官方固定Fashion-MNIST下载/验证
+scripts/demo_fashion.py 小CNN/ONNX图像CPU闭环演示
 tests/test_platform.py  实际 HTTP / 进程 / SQLite 验收
 docs/                架构契约、路线图、验收记录
 ```

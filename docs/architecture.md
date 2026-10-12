@@ -8,11 +8,11 @@ model-platform 独立管理算法配方、数据快照及技术引用、Training
 
 Sluggard 是可选业务接入：管理课程、业务任务、业务审批、业务权限、界面和关联，通过稳定技术 ID 和接口引用本平台事实。业务审批可决定是否调用技术接口，但不直接修改技术模型登记、执行或部署状态。不假定已有真实 Sluggard 接口；本次不实现对接。
 
-visionlab、教学、机器人和无人机产品独立。本平台不承担课程成绩、机器人控制、飞控或设备安全。未来端侧包与外部 endpoint 适配属于规划；本次数值分类示例不是视觉或无人机能力验收。
+visionlab、教学、机器人和无人机产品独立。本平台不承担课程成绩、机器人控制、飞控或设备安全。未来端侧包与外部 endpoint 适配属于规划；数值分类示例不代表视觉能力，新增Fashion灰度小CNN也不代表无人机或实机验收。
 
 ## 选型与运行边界
 
-- Python 3.12.14（本次 Linux 云端固定并实测），标准库 HTTP/JSON、SQLite WAL、Unix 文件锁；零第三方运行或测试包，依赖锁见 requirements.lock。选择成本是自行维护小型 HTTP 契约、输入校验与错误处理；后续公网服务应迁移成熟网关/框架。
+- Python 3.12.14（本次 Linux 云端固定并实测），标准库 HTTP/JSON、SQLite WAL、Unix 文件锁；基础二分类/UCI零第三方运行或测试包，依赖锁见 requirements.lock；可选Fashion深度学习依赖单独锁于requirements-fashion.lock。选择成本是自行维护小型 HTTP 契约、输入校验与错误处理；后续公网服务应迁移成熟网关/框架。
 - 模块化单体 API、一个独立训练 Worker、每个部署一个独立受控推理子进程。HTTP 不训练；SQLite 事务队列防止提交与领取之间丢任务。
 - 一个运行目录限一个 API、一个 Worker；文件锁在进程死亡时释放。Worker 启动将未终结 attempt 标记 interrupted/failed，保留日志；不自动重训。显式 retry 新增 attempt，最多 3 次。queued 请求继续领取。
 - API 监督子进程；推理端口仅 localhost，随机内部 capability 通过 stdin 传递。对外调用必须经过鉴权 API，不允许任意路径、URL、代码配方或 pickle。部署只加载已登记版本并校验 SHA-256。
@@ -51,7 +51,7 @@ run 固定输入快照、摘要、配方、代码源码摘要、Python/平台环
 
 ## 后续能力
 
-更新/回滚需新部署 ID，首版没有流量原子切换与自动回滚；没有模型质量发布门槛、审批准入或生产发布。设备包、视觉算法、厂商来源、外部 endpoint、对象存储、分布式 Worker、取消、强资源隔离和成熟多用户权限体系另行设计与验收。
+更新/回滚需新部署 ID，首版没有流量原子切换与自动回滚；没有模型质量发布门槛、审批准入或生产发布。设备包、更多视觉算法、厂商来源、外部 endpoint、对象存储、分布式 Worker、取消、强资源隔离和成熟多用户权限体系另行设计与验收。
 
 ## 数字十分类增量契约
 
@@ -60,3 +60,7 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 数据须另含 provenance（archive_sha256/train_sha256/evaluation_sha256、official_split=true、license=CC-BY-4.0、固定UCI source_url）；API检查声明格式而不下载或独立认证来源，也不保证小型调用方样本就是完整官方数据。完整数据演示由下载脚本校验固定官方原字节SHA256，实际用3823训练、1797最终测试。数字配方保留量化后相同特征的不同记录；模型manifest记录跨split重合评估行数与来源声明，下载审计另有完整重复统计。原二分类重合拒绝保持不变。
 
 新推理输出每行 `{class: 0..9, probabilities: [p0,...,p9]}`，响应contract、deployment.contract以及manifest均来自绑定模型；ready探测验证十项概率与和。仍限128行/请求。评估重载登记前产物，独立计算 held-out-multiclass/v1 的accuracy、macro_f1（固定十类）、log_loss、confusion（行真值/列预测）及class_order。训练与评估预测耗时是当前环境观察，不是性能基准。无test调参、早停、原图CNN、ONNX/GPU或设备扩展。数据归属、来源及运行见[digits.md](digits.md)。
+
+## Fashion-MNIST CNN 增量契约
+
+新增可选fashion-cnn/v1，固定公开官方缓存引用、6000分层训练/10000独立最终test，PyTorch CPU从零训练、ONNX CPU评估和持续服务。详细输入、版本、预处理及资源预算见[fashion.md](fashion.md)。标准库二分类/UCI依赖保持不变；Fashion额外库是显式可选安装。ONNX产物只允许已登记hash验证的自生成文件，无外部模型上传。

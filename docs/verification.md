@@ -103,3 +103,17 @@ stop verified: subsequent inference rejected (503)
 - 训练第一次9.9094秒、重复10.9199秒；HTTP每10行批次中位数第一次5.8853毫秒、重复6.3808毫秒。这是共享CPU的本次观察，包含HTTP鉴权/探测/序列化开销，不是独立性能基准
 
 测试小数据明确是合成契约夹具；真实数据质量证据仅来自以上官方全量演示。无公网部署、真实业务接入、生产隔离、原图视觉网络、ONNX、GPU或设备验收。数据、权重、原始日志、数据库、凭据和JSON运行报告均位于被Git忽略的`.runtime/`，不提交。
+
+## Fashion-MNIST / CNN / ONNX 增量验收（2026-10-12）
+
+以上“无ONNX/视觉网络”描述仅对应之前数值配方阶段。新增固定公开Fashion-MNIST灰度小CNN的真实闭环已经通过，完整数据划分、实际指标、依赖、预算和限制见[fashion.md](fashion.md)。可提交的[fashion-verification.json](fashion-verification.json)仅含脱敏技术元数据、聚合评估/校验和，不含图像、权重、凭据或原始日志。
+
+- `.venv-fashion/bin/python -m compileall -q model_platform scripts tests` 通过
+- `.venv-fashion/bin/python -m unittest discover -s tests -v`：75 tests，全部通过，22.922秒；原42项回归+17项图像/ONNX/真实HTTP生命周期+16项数据来源/解压/预算/目录安全
+- `.venv/bin/python -m unittest discover -s tests -v`（原零依赖venv）：75 tests，64通过/11可选依赖跳过，16.066秒；`python -m unittest discover -s tests -v`系统环境：65通过/10跳过，17.438秒
+- 官方6000分层训练、完整10000 test；accuracy0.8076，macro-F1 0.8048124060，log loss0.5301679883；全test双后端类别一致100%，最大绝对logit差1.335144e-5
+- 真实模型持续HTTP、版本关联、停止503、API崩溃恢复和孤儿退出、隔离副本权重损坏拒绝均通过。只有合成测试在构造模型权重，真实指标来自官方数据实跑
+- 同次回归完整UCI3823/1797及旧二分类闭环均通过
+- 全21个实际安装依赖版本与hash lock一致，21个官方wheel共252,708,049字节下载hash验证通过；pip check通过，torch cuda=None
+- 核心源码SHA256 `dd74a334d6d165edf4c5f4e8eb0f4e287a09f866acb6deea4392d32156da193f` 与真实训练报告一致；测试/文档后续编辑不改模型核心源码
+- 没有测试外部部署、GPU/设备兼容性、硬资源沙箱或生产多租户；该阶段不新增这些承诺

@@ -3,7 +3,7 @@ import json
 import time
 
 from .algorithm import TrainingFailure, train, write_model
-from . import digits
+from . import digits, fashion
 from .common import CONTRACT, RECIPE, digest, environment, training_request
 from .evaluation import evaluate
 from .store import Store
@@ -26,6 +26,17 @@ def execute(store, run, attempt_id):
         recipe = body.get("recipe", RECIPE)
         store.log(attempt_id, "started", {"recipe": recipe})
         started = time.monotonic()
+        if recipe == fashion.RECIPE:
+            from .fashion_training import train_export
+            try:
+                artifact_hash, evaluation, manifest = train_export(store.runtime, body, store.runtime.artifact(attempt_id),
+                    lambda event, details: store.log(attempt_id, event, details), EXECUTION_ENVIRONMENT)
+            except ImportError:
+                raise TrainingFailure("optional_dependencies_missing") from None
+            manifest["environment"] = json.loads(run["environment_json"])
+            verify_execution_code(run)
+            store.register(run, attempt_id, artifact_hash, evaluation, manifest)
+            return
         trainer = digits.train if recipe == digits.RECIPE else train
         model = trainer(data["train"], body["config"], lambda event, details: store.log(attempt_id, event, details))
         training_seconds = time.monotonic() - started

@@ -78,7 +78,7 @@ def make_handler(store, supervisor, auth):
         def route(self, method, parts, tenant):
             if method == "GET" and parts == ["health"]:
                 return 200, {"status": "ok", "recipe": RECIPE, "contract": CONTRACT, "cancel_supported": False,
-                             "recipes": [RECIPE, "softmax-digits/v1"],
+                             "recipes": [RECIPE, "softmax-digits/v1", "fashion-cnn/v1"],
                              "budgets": {"active_runs": MAX_ACTIVE_RUNS, "deployments": MAX_DEPLOYMENTS}}
             if len(parts) == 1 and parts[0] in ("runs", "models", "deployments"):
                 if method == "GET":

@@ -44,3 +44,5 @@ htmlcov/
 
 # Local isolated CPU runtime (datasets, models, credentials, SQLite, logs)
 /.runtime/
+
+/.venv-fashion/
