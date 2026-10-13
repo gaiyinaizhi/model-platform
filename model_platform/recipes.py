@@ -203,3 +203,81 @@ def for_manifest(manifest):
     if manifest.get("contract") != spec.contract or manifest.get("format") != spec.format:
         raise ValueError("Model manifest contract mismatch")
     return spec
+
+
+def public_catalog():
+    """Discovery-only extension: existing manifest catalog remains unchanged.
+
+    Capabilities describe implemented protocols, not installed dependencies,
+    available training data, worker liveness, service readiness or model quality.
+    """
+    result = []
+    for spec in REGISTRY.values():
+        item = spec.describe()
+        is_detection = spec.id == detection.RECIPE
+        item.update(task_type='object-detection' if is_detection else 'classification',
+                    availability={'dependencies': 'unknown', 'data': 'unknown', 'worker': 'unknown'},
+                    quality={'production_allowed': False,
+                             'status': 'quality-failed' if is_detection else 'development-only',
+                             'warnings': ['high-confidence-extreme-raw-boxes', 'clipped-boxes-do-not-prove-quality']
+                             if is_detection else ['not-production-validated']})
+        fixed = detection if is_detection else fashion if spec.id == fashion.RECIPE else None
+        item['training'] = {'fixed_config': dict(fixed.CONFIG) if fixed else None,
+                            'fixed_dataset': fixed.request_body()['dataset'] if fixed else None}
+        if fixed is None:
+            item['training']['config_schema'] = {
+                'type': 'object', 'additionalProperties': False,
+                'required': ['epochs', 'learning_rate'] + (['seed'] if spec.id == digits.RECIPE else []),
+                'properties': {
+                    'epochs': {'type': 'integer', 'minimum': 1, 'maximum': spec.budgets.max_epochs},
+                    'learning_rate': {'type': 'number', 'minimum': 0.001,
+                                      'maximum': 0.1 if spec.id == digits.RECIPE else 1.0}}}
+            if spec.id == digits.RECIPE:
+                item['training']['config_schema']['properties']['seed'] = {
+                    'type': 'integer', 'minimum': 0, 'maximum': 2**32 - 1}
+        probability = {'type': 'number', 'minimum': 0, 'maximum': 1}
+        if is_detection:
+            image = {'type': 'object', 'additionalProperties': False,
+                     'required': ['width', 'height', 'pixels'], 'properties': {
+                         'width': {'type': 'integer', 'minimum': 1, 'maximum': detection.MAX_SIDE},
+                         'height': {'type': 'integer', 'minimum': 1, 'maximum': detection.MAX_SIDE},
+                         'pixels': {'type': 'array', 'minItems': 3, 'maxItems': detection.MAX_SIDE**2 * 3,
+                                    'items': {'type': 'integer', 'minimum': 0, 'maximum': 255}}}}
+            output = {'type': 'object', 'additionalProperties': False,
+                      'required': ['width', 'height', 'detections'], 'properties': {
+                          'width': dict(image['properties']['width']), 'height': dict(image['properties']['height']),
+                          'detections': {'type': 'array', 'maxItems': 100, 'items': {
+                              'type': 'object', 'additionalProperties': False,
+                              'required': ['class_id', 'score', 'box'], 'properties': {
+                                  'class_id': {'type': 'integer', 'const': 0},
+                                  'score': {'type': 'number', 'minimum': detection.SCORE_THRESHOLD, 'maximum': 1},
+                                  'box': {'type': 'array', 'minItems': 4, 'maxItems': 4,
+                                          'items': {'type': 'number', 'minimum': 0}}}}}}}
+            semantics = {'pixels': 'RGB row-major HWC; length=width*height*3',
+                         'resize': '160x160 top-left letterbox; reject zero resized side',
+                         'box': 'original-xyxy-half-open; 0<=x1<x2<=width; 0<=y1<y2<=height',
+                         'classes': [{'id': 0, 'name': 'Cat'}], 'empty_detections_valid': True,
+                         'score_threshold': detection.SCORE_THRESHOLD, 'nms_iou_threshold': detection.NMS_IOU_THRESHOLD}
+        else:
+            binary = spec.id == RECIPE
+            pixels = {'type': 'number', 'minimum': -1000000, 'maximum': 1000000} if binary else {
+                'type': 'integer', 'minimum': 0, 'maximum': 16 if spec.id == digits.RECIPE else 255}
+            image = {'type': 'array', 'minItems': 1 if binary else spec.budgets.max_dimensions,
+                     'maxItems': spec.budgets.max_dimensions, 'items': pixels}
+            field = 'probability' if binary else 'probabilities'
+            output = {'type': 'object', 'additionalProperties': False,
+                      'required': ['class', field], 'properties': {
+                          'class': {'type': 'integer', 'minimum': 0, 'maximum': spec.classes - 1},
+                          field: probability if binary else {'type': 'array', 'minItems': spec.classes,
+                               'maxItems': spec.classes, 'items': dict(probability)}}}
+            semantics = {'dimensions': 'must equal the bound model dimensions',
+                         'probabilities': 'class order 0..classes-1; sum=1' if not binary else 'P(class=1)'}
+        item['prediction'] = {
+            'request_schema': {'type': 'object', 'additionalProperties': False, 'required': ['features'],
+                               'properties': {'features': {'type': 'array', 'minItems': 1,
+                                   'maxItems': spec.budgets.prediction_rows, 'items': image}}},
+            'predictions_schema': {'type': 'array', 'minItems': 1,
+                                   'maxItems': spec.budgets.prediction_rows, 'items': output},
+            'semantics': semantics}
+        result.append(item)
+    return result

@@ -1,6 +1,9 @@
 """SQLite is the sole writer authority for technical records and queue state."""
 import json
+import hashlib
 import uuid
+
+from .pagination import cursor_key, pack_cursor, unpack_cursor
 
 from .common import (MAX_ACTIVE_RUNS, MAX_ATTEMPTS, MAX_DEPLOYMENTS, Problem,
                      RECIPE, digest, encode, environment, now)
@@ -40,6 +43,13 @@ CREATE TABLE IF NOT EXISTS deployments (
  observed TEXT NOT NULL CHECK(observed IN ('starting','ready','unavailable','failed','stopped')),
  checked_at REAL, error_code TEXT, pid INTEGER, created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS deployment_keys (
+ tenant TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_sha256 TEXT NOT NULL,
+ deployment_id TEXT NOT NULL REFERENCES deployments(id), PRIMARY KEY(tenant,idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS runs_history ON runs(tenant,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS models_history ON models(tenant,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS deployments_history ON deployments(tenant,created_at DESC,id DESC);
 CREATE TABLE IF NOT EXISTS audit (
  id INTEGER PRIMARY KEY AUTOINCREMENT, time REAL NOT NULL, tenant TEXT NOT NULL,
  action TEXT NOT NULL, object_id TEXT NOT NULL
@@ -58,6 +68,7 @@ def identifier(prefix):
 class Store:
     def __init__(self, runtime):
         self.runtime = runtime
+        self.cursor_key = cursor_key(runtime.home)
         with runtime.connection() as db:
             db.executescript(SCHEMA)
             for table in ("models", "evaluations"):
@@ -123,7 +134,38 @@ class Store:
         if table not in ("runs", "models", "deployments"):
             raise ValueError("Invalid collection")
         with self.runtime.connection() as db:
-            return [row[0] for row in db.execute(f"SELECT id FROM {table} WHERE tenant=? ORDER BY created_at DESC LIMIT 100", (tenant,))]
+            return [row[0] for row in db.execute(f"SELECT id FROM {table} WHERE tenant=? ORDER BY created_at DESC,id DESC LIMIT 100", (tenant,))]
+
+    def list_page(self, table, tenant, limit=None, cursor=None):
+        if table not in ("runs", "models", "deployments"):
+            raise ValueError("Invalid collection")
+        state = unpack_cursor(self.cursor_key, cursor, tenant, table) if cursor is not None else None
+        if limit is None:
+            limit = state["limit"] if state else 100
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise Problem(400, "invalid_input", "Limit must be 1..100")
+        if state and limit != state["limit"]:
+            raise Problem(400, "invalid_cursor", "Cursor page size cannot change")
+        with self.runtime.connection() as db:
+            # Freeze membership, not mutable statuses. A read transaction makes
+            # the first-page high-water mark and selection one SQLite snapshot.
+            db.execute("BEGIN")
+            high = state["high"] if state else db.execute(
+                f"SELECT COALESCE(MAX(rowid),0) FROM {table}").fetchone()[0]
+            query = f"SELECT id,created_at FROM {table} WHERE tenant=? AND rowid<=?"
+            args = [tenant, high]
+            if state:
+                query += " AND (created_at,id)<(?,?)"
+                args.extend(state["last"])
+            query += " ORDER BY created_at DESC,id DESC LIMIT ?"
+            rows = db.execute(query, (*args, limit + 1)).fetchall()
+        next_cursor = None
+        if len(rows) > limit:
+            last = rows[limit - 1]
+            next_cursor = pack_cursor(self.cursor_key, {
+                "v": 1, "tenant": hashlib.sha256(tenant.encode()).hexdigest(), "collection": table, "limit": limit,
+                "high": high, "last": [last["created_at"], last["id"]]})
+        return {"ids": [row["id"] for row in rows[:limit]], "limit": limit, "next_cursor": next_cursor}
 
     def retry(self, tenant, run_id):
         with self.runtime.connection() as db:
@@ -205,8 +247,20 @@ class Store:
             return result
 
     def create_deployment(self, tenant, model_id):
+        # Preserve the internal legacy helper's string return contract as well.
+        return self.submit_deployment(tenant, model_id)[0]
+
+    def submit_deployment(self, tenant, model_id, key=None):
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            request_hash = digest({"model_version_id": model_id})
+            if key is not None:
+                old = db.execute("SELECT * FROM deployment_keys WHERE tenant=? AND idempotency_key=?",
+                                 (tenant, key)).fetchone()
+                if old:
+                    if old["request_sha256"] != request_hash:
+                        raise Problem(409, "idempotency_conflict", "Key already bound to different input")
+                    return old["deployment_id"], False
             self._owned(db, "models", tenant, model_id)
             count = db.execute("SELECT count(*) FROM deployments WHERE desired='running'").fetchone()[0]
             if count >= MAX_DEPLOYMENTS:
@@ -214,8 +268,11 @@ class Store:
             deployment_id = identifier("deployment")
             db.execute("INSERT INTO deployments VALUES(?,?,?,'running','starting',NULL,NULL,NULL,?)",
                        (deployment_id, tenant, model_id, now()))
+            if key is not None:
+                db.execute("INSERT INTO deployment_keys VALUES(?,?,?,?)",
+                           (tenant, key, request_hash, deployment_id))
             self.audit(db, tenant, "start_deployment", deployment_id)
-            return deployment_id
+            return deployment_id, True
 
     def deployment(self, tenant, deployment_id):
         with self.runtime.connection() as db:

@@ -73,9 +73,10 @@ API / Worker 通过各自终端的 Ctrl+C 停止。API 正常退出会终结自�
 
 - 训练：`POST /runs` 携带 `Idempotency-Key`；`GET /runs/{id}` 查询；失败后 `POST /runs/{id}/retry` 携带 `{}` 显式重试
 - 登记：`GET /models`、`GET /models/{id}` 查询不可变技术记录、评估和摘要，不下载原始权重
-- 部署：`POST /deployments` 携带 `model_version_id`；查询 deployment 的 `desired`、`observed` 和 `ready`
+- 配方发现：鉴权 `GET /recipes` 返回任务/数据/预算/输入输出契约与质量警告；声明能力不等于运行就绪
+- 部署：`POST /deployments` 携带 `model_version_id`，可选 `Idempotency-Key` 支持安全重试；查询 deployment 的 `desired`、`observed` 和 `ready`
 - 预测：`POST /deployments/{id}/predict` 携带 `features`（分类为二维数值数组，检测为单张受限RGB像素对象）；停止：`POST /deployments/{id}/stop` 携带 `{}`
-- `GET /health` 只表示 API 可用，不保证独立 Worker 存活；集合查询最多返回最新 100 个 ID，首版没有分页
+- `GET /health` 只表示 API 可用，不保证独立 Worker 存活；集合无 query 保持最新100个 ID；`?limit=1..100` / `?cursor=...` 显式开启稳定历史分页，见[业务接入契约](docs/integration-api.md)
 
 传输预算为每请求 2 MiB（二分类规范化 JSON 仍限 1 MiB）、每 tenant 每分钟 120 请求、API 最多 16 个并发连接；全局最多 32 个排队/运行任务和 4 个 `desired=running` 部署。失败部署仍占预算，显式 stop 可释放。二分类训练和留出合计不超过 1,000 行、每个集合至少 4 行且含两类、最多 16 特征、200 epoch、训练循环 60 秒；在线预测最多 128 行。提交数据须声明合法使用，并提供不与训练样本特征重叠的留出集；这是调用方提供的留出数据，不是外部独立审计。数字配方单独限制训练≤3823、评估≤1797、固定64维/10类、≤60 epoch、训练循环120秒；需官方来源及许可摘要声明，完整演示核验官方字节校验和。数字配方保留官方记录中可能重复的量化特征并记录重合审计，不改变二分类的跨集合拒绝规则。
 

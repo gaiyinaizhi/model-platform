@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-13",
+  "baseline_commit": "07c3bc1786f28556356ec204fcd1bb15a8b3cf6f",
+  "branch": "feat/standalone-cpu-loop",
+  "scope": [
+    "authenticated recipe discovery",
+    "optional deployment idempotency",
+    "opt-in stable history pagination"
+  ],
+  "python": "3.12.14",
+  "sqlite": "3.53.1",
+  "source_sha256": "8b061daf83bf373362eb18657d2bac1af89f9e0d90e8a8b475165797775cc2ea",
+  "tests": {
+    "baseline_system": {
+      "total": 177,
+      "passed": 139,
+      "skipped": 38,
+      "seconds": 19.513
+    },
+    "clean_stdlib": {
+      "total": 189,
+      "passed": 146,
+      "skipped": 43,
+      "seconds": 22.124
+    },
+    "optional_cpu": {
+      "total": 188,
+      "passed": 188,
+      "skipped": 0,
+      "seconds": 30.838,
+      "explicit_exclusions": [
+        "test_fashion_data.OptionalOfficialCacheTests.test_full_source_is_reverified_offline"
+      ]
+    },
+    "new_tests": 12,
+    "compileall": "passed",
+    "pip_check": "passed",
+    "diff_check": "passed"
+  },
+  "security_review": {
+    "status": "passed_after_fix",
+    "fixed": [
+      "long Unicode tenant cursor overflow; tenant bound by fixed SHA256 digest"
+    ],
+    "boundaries": [
+      "cursor is not authentication",
+      "local trusted development only",
+      "YOLOX quality-failed; production forbidden"
+    ]
+  },
+  "not_performed": [
+    "new YOLOX training by platform API work",
+    "production deployment",
+    "remote commit/push/merge"
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "74ae380b2292327bcb925f99ecb37ec25450343622deda3fb9a784086de90fbd",
+      "bytes": 11106
+    },
+    {
+      "path": "docs/architecture.md",
+      "sha256": "d703acc5b841113933d4e28551a75184d8286316f48ac5c714c76e0bc885ef90",
+      "bytes": 10890
+    },
+    {
+      "path": "docs/integration-api.md",
+      "sha256": "41ae636892e336e93cae80b09519c3f56843cdd75e0f6311edc2407c3e5df207",
+      "bytes": 5947
+    },
+    {
+      "path": "docs/verification.md",
+      "sha256": "1486576975a029de64dac806699db6e16bfc803e04707f2176ab847779fea012",
+      "bytes": 18109
+    },
+    {
+      "path": "model_platform/api.py",
+      "sha256": "3dd0dfd27db1e2c121cabe9ae9a4c4a889ab70bfdfa4b24b5908b63b54245b93",
+      "bytes": 8676
+    },
+    {
+      "path": "model_platform/recipes.py",
+      "sha256": "b9f3146fc0109fe6ee094c96aefcafa4f1130c944b7a5ac7909c9be73558fde3",
+      "bytes": 14822
+    },
+    {
+      "path": "model_platform/store.py",
+      "sha256": "140c5faeb9598edbdefd5b71ac6cfa78b6348a1774aced91f5f79cdddfc9e297",
+      "bytes": 17518
+    },
+    {
+      "path": "model_platform/pagination.py",
+      "sha256": "a949f704cf604109f877df0f095e89b81d87299a5db8dabd33b796d99679bb3e",
+      "bytes": 3079
+    },
+    {
+      "path": "tests/test_integration_api.py",
+      "sha256": "b247d29ff70c9895cc50553847028fa14f0b0097017db81c908d2cd522752eee",
+      "bytes": 14228
+    }
+  ]
+}

@@ -150,3 +150,17 @@ Fashion ONNX/PyTorch 全10000 test 的 argmax agreement 为 1.0，最大绝对 l
 ## YOLOX 检测与 mAP 最终增量验收
 
 详见 [检测验收/质量缺陷](detection.md) 和 [结构化证据](detection-verification.json)。177可选测试全过，标准库134通过43跳过；真实YOLOX训练、32图独立test AP50=0.5151476295/AP50:95=0.1721211584、双后端框及AP一致性、持续服务/停止/重启和三分类真实demo通过。原始候选存在高置信极端坐标，模型质量不合格，禁止生产使用；技术生命周期通过不能替代模型质量验收。所有测试进程/演示部署已清理，无数据/权重提交。
+
+## 2026-10-13：业务接入 API 增量
+
+基线为 `feat/standalone-cpu-loop` 的 `07c3bc1786f28556356ec204fcd1bb15a8b3cf6f`，不从文档 main 分支恢复。新增范围及兼容策略见 [integration-api.md](integration-api.md)，机器可读增量证据见 [integration-verification.json](integration-verification.json)。没有改写先前模型、执行源码摘要或检测质量记录，没有调整训练参数/阈值。
+
+- 修改前系统解释器基线：177项，19.513秒，139通过/38可选依赖skip（系统已有NumPy/Pillow）
+- 修改后纯净 `.venv` Python3.12.14：`python -m unittest discover -s tests -v`，189项，22.124秒，146通过/43可选skip
+- 新增 `test_integration_api.py` 12项全部执行通过，包括真实训练/持续服务HTTP、8并发同key、响应丢失重试、tenant隔离、满配额replay、8不同key竞争4配额、停止与重启、107条历史、同时间排序、后续/backdated插入排除、cursor鉴权/边界/篡改/跨集合、0600签名key并发初始化及旧schema迁移
+- `.venv-fashion` 按原 `requirements-detection.lock` 以 `--require-hashes --only-binary=:all:` 安装成功，`pip check` 无冲突；确认PyTorch CPU和ONNX CPUExecutionProvider
+- 可选CPU测试按现有CI完全相同的筛选逻辑，明确只排除 `test_fashion_data.OptionalOfficialCacheTests.test_full_source_is_reverified_offline`（未恢复Fashion官方缓存）：其余188项全部通过，30.838秒，0skip
+- `compileall`、`git diff --check` 通过。源码不引入新依赖；stdlib与可选库两条路径均覆盖
+- 独立只读安全审查发现合法长Unicode tenant可令cursor超过长度上限；已用固定长tenant SHA256摘要绑定修复并新增160个非BMP字符回归。复核额外8进程64次完整性key初始化同钥/0600通过，事务/并发/配额/停止重放无新增阻塞
+
+本轮平台测试不下载官方数据、不重新训练YOLOX、不声称检测质量改善。业务侧最小真实检测接入另行验收，不能用这里的二分类真实HTTP或合成ONNX回归代替业务端到端证据。所有测试创建的API/Worker/serving均由测试清理；共享可选venv仅供后续受控真实检测接入验收使用。

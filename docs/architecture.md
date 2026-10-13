@@ -42,7 +42,7 @@ run 固定输入快照、摘要、配方、代码源码摘要、Python/平台环
 | POST /runs/{id}/retry | 仅 failed 可重排，保留历史，最多 3 attempts；其他状态 409 |
 | POST /runs/{id}/cancel | 501，明确不支持；不伪造 cancelled |
 | GET /models、GET /models/{id} | 不可变技术清单、血缘、评估、资源 ID 和摘要，不暴露路径或权重 |
-| POST /deployments | 指定 model_version_id；持久化 desired=running 后后台启动，202 |
+| POST /deployments | 指定 model_version_id；可选 Idempotency-Key，首次202/重放200；持久化 desired=running 后后台启动 |
 | GET /deployments、GET /deployments/{id} | desired 与 observed 分开；ready 来源于带版本的真实零向量推理探测，含检查时间 |
 | POST /deployments/{id}/predict | features 数组；实际 ready 才转发，返回版本、摘要、概率和分类 |
 | POST /deployments/{id}/stop | 先拒绝新调用，再终结进程；失败如实返回 503，成功返回 observed=stopped |
@@ -67,10 +67,14 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 
 ## 静态内部配方注册与 CI 增量
 
-三套配方现由不可变静态白名单统一分派校验、执行、产物加载和预测，配方预算与元数据有单一目录；见 [recipes.md](recipes.md)。不开放运行时注册、外部代码导入或新 HTTP 发现路由。旧请求/产物/预测/血缘兼容；可选库继续 lazy。Worker 与 supervisor 生命周期职责不变。
+三套配方现由不可变静态白名单统一分派校验、执行、产物加载和预测，配方预算与元数据有单一目录；见 [recipes.md](recipes.md)。不开放运行时注册或外部代码导入；后续鉴权只读发现见[业务接入增量契约](integration-api.md)。旧请求/产物/预测/血缘兼容；可选库继续 lazy。Worker 与 supervisor 生命周期职责不变。
 
 新增 [CPU CI](ci.md) 执行标准库全部测试和独立 hash-locked ONNX 无数据下载回归。远端 Actions 的实际状态以对应提交的 run 为准，本地执行不等同远端已通过。
 
 ## YOLOX 单类检测增量契约
 
 检测是独立的 `rgb-cat-detection/v1`，输入受限单张RGB像素对象，输出原图绝对坐标框、class_id=0、confidence，无分类概率向量。训练固定许可来源的数据引用，CPU从零训练并ONNX导出；验证/测试独立，报告COCO-style AP50及AP50:95，不冒充Open Images官方benchmark。探测回调由静态配方定义，沿用原版本登记、独立服务、停止和期望状态恢复。详见 [detection.md](detection.md)。
+
+## 业务接入 API 增量
+
+鉴权 `GET /recipes`、部署可选幂等以及集合显式稳定cursor分页已加入；无query集合与无key部署保持旧客户端行为。详情、安全边界与质量字段见 [integration-api.md](integration-api.md)。它不改变训练/模型技术血缘、静态注册或YOLOX禁止生产状态。

@@ -5,12 +5,12 @@ import hmac
 import json
 import threading
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qsl
 
 from .common import (CONTRACT, MAX_ACTIVE_RUNS, MAX_DEPLOYMENTS, Problem,
                      RECIPE, object_fields, text_value, training_request)
 from .http_support import BoundedHTTPServer, JsonHandler
-from .recipes import recipe_ids
+from .recipes import recipe_ids, public_catalog
 from .store import Store
 from .supervisor import Supervisor
 
@@ -64,10 +64,28 @@ def make_handler(store, supervisor, auth):
                     raise Problem(401, "unauthorized", "One authorization header required")
                 tenant = auth.authenticate(self.headers.get("Authorization", ""))
                 url = urlsplit(self.path)
-                if url.query or url.fragment or "%" in url.path:
-                    raise Problem(400, "invalid_input", "Query parameters and encoded paths are unsupported")
+                if url.fragment or "%" in url.path:
+                    raise Problem(400, "invalid_input", "Fragments and encoded paths are unsupported")
                 parts = url.path.strip("/").split("/")
-                status, result = self.route(method, parts, tenant)
+                if url.query:
+                    if method != "GET" or len(parts) != 1 or parts[0] not in ("runs", "models", "deployments"):
+                        raise Problem(400, "invalid_input", "Query parameters unsupported on this route")
+                    if len(url.query) > 2200:
+                        raise Problem(400, "invalid_input", "Query too long")
+                    try:
+                        pairs = parse_qsl(url.query, keep_blank_values=True, strict_parsing=True, max_num_fields=2)
+                    except ValueError:
+                        raise Problem(400, "invalid_input", "Invalid pagination query") from None
+                    query = dict(pairs)
+                    if len(query) != len(pairs) or set(query) - {"limit", "cursor"}:
+                        raise Problem(400, "invalid_input", "Unknown or duplicate query fields")
+                    limit = query.get("limit")
+                    if limit is not None and (not limit.isascii() or not limit.isdecimal() or not 1 <= len(limit) <= 3):
+                        raise Problem(400, "invalid_input", "Limit must be 1..100")
+                    status, result = 200, store.list_page(parts[0], tenant,
+                        int(limit) if limit is not None else None, query.get("cursor"))
+                else:
+                    status, result = self.route(method, parts, tenant)
                 self.respond(status, result)
             except Problem as exc:
                 self.handle_problem(exc)
@@ -77,6 +95,8 @@ def make_handler(store, supervisor, auth):
                 self.handle_problem(Problem(500, "internal_error", "Internal operation failed"))
 
         def route(self, method, parts, tenant):
+            if method == "GET" and parts == ["recipes"]:
+                return 200, {"recipes": public_catalog()}
             if method == "GET" and parts == ["health"]:
                 return 200, {"status": "ok", "recipe": RECIPE, "contract": CONTRACT, "cancel_supported": False,
                              "recipes": recipe_ids(),
@@ -96,8 +116,12 @@ def make_handler(store, supervisor, auth):
                     body = self.body()
                     object_fields(body, ("model_version_id",))
                     model_id = text_value(body["model_version_id"], "model_version_id")
-                    deployment_id = store.create_deployment(tenant, model_id)
-                    return 202, store.deployment(tenant, deployment_id)
+                    keys = self.headers.get_all("Idempotency-Key", [])
+                    if len(keys) > 1:
+                        raise Problem(400, "invalid_input", "At most one Idempotency-Key allowed")
+                    key = text_value(keys[0], "Idempotency-Key", 128) if keys else None
+                    deployment_id, created = store.submit_deployment(tenant, model_id, key)
+                    return (202 if created else 200), store.deployment(tenant, deployment_id)
             if len(parts) == 2 and method == "GET":
                 collection, object_id = parts
                 if collection == "runs":
