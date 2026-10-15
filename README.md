@@ -25,6 +25,8 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 - 每部署一个独立 CPU 推理进程，绑定明确模型版本；实际预测探测 ready，停止进程后拒绝预测；自定义数据集模型返回完整类别/血缘及研究范围，见[持续推理契约](docs/dataset-serving.md)
 - API 崩溃后的持久化期望状态恢复；Worker 中断在下次启动登记为 failed，显式重试，不静默重训
 
+- 新增 [ONNX 交付清单/真实产物下载](docs/edge-delivery.md)和 [独立 CPU Worker 部署与就绪检查](docs/cpu-worker-deployment.md)；仅现有 CPU ONNX，不代表目标设备认证或生产许可
+
 ## 环境要求
 
 - Linux 或支持 `fcntl.flock`、Unix 文件描述符继承及进程信号的系统；本次云端验收为 Linux x86_64
@@ -75,7 +77,7 @@ API / Worker 通过各自终端的 Ctrl+C 停止。API 正常退出会终结自�
 所有业务及健康路由均要求 `Authorization: Bearer <token>`。token 固定绑定 tenant，请求体不能选择 tenant；越权对象返回 404。请求 JSON 不允许未知字段、重复字段、非有限数值或任意外部 URL、文件路径、可执行配方。完整路由和错误码见 [架构契约](docs/architecture.md#最小-apiv1)。
 
 - 训练：`POST /runs` 携带 `Idempotency-Key`；`GET /runs/{id}` 查询；失败后 `POST /runs/{id}/retry` 携带 `{}` 显式重试
-- 登记：`GET /models`、`GET /models/{id}` 查询不可变技术记录、评估和摘要，不下载原始权重
+- 登记：`GET /models`、`GET /models/{id}` 查询不可变技术记录、评估和摘要；[ONNX 交付](docs/edge-delivery.md)提供鉴权部署产物下载（非训练 checkpoint）
 - 配方发现：鉴权 `GET /recipes` 返回任务/数据/预算/输入输出契约与质量警告；声明能力不等于运行就绪
 - 部署：`POST /deployments` 携带 `model_version_id`，可选 `Idempotency-Key` 支持安全重试；查询 deployment 的 `desired`、`observed` 和 `ready`
 - 预测：`POST /deployments/{id}/predict` 携带 `features`（分类为二维数值数组，检测为单张受限RGB像素对象）；停止：`POST /deployments/{id}/stop` 携带 `{}`

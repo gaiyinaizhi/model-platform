@@ -1,0 +1,97 @@
+{
+  "date_utc": "2026-10-15",
+  "base_commit": "eedf863ddb30e8fab884dc26aa45887a976ab90b",
+  "execution_environment": {
+    "python": "3.12.14",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "code_sha256": "d5c0e7db70cbbb0fc40a55adab910017d068b539d5929730cc83b4df62c12bf0",
+    "dependencies": "base=stdlib-only; optional recipe dependencies recorded in manifest",
+    "supported_recipes": [
+      "logistic-regression/v1",
+      "softmax-digits/v1",
+      "fashion-cnn/v1",
+      "yolox-nano-cat/v1",
+      "yolox-nano-dataset/v1"
+    ]
+  },
+  "regression": {
+    "command": "python -m unittest discover -s tests -v",
+    "total": 259,
+    "passed": 218,
+    "skipped": 41,
+    "failed": 0,
+    "skip_reasons": {
+      "optional_ONNX_dataset": 3,
+      "optional_Fashion_ONNX": 10,
+      "optional_numpy_pycocotools": 17,
+      "optional_torch_detection": 10,
+      "optional_numpy_and_official_cache": 1
+    }
+  },
+  "focused": {
+    "delivery": 7,
+    "worker_readiness": 9,
+    "download_helper": 10,
+    "total_passed": 26
+  },
+  "independent_security": {
+    "additional_adversarial_cases_passed": 4,
+    "cases": [
+      "FIFO rejected without blocking",
+      "same-size mutation during read rejected",
+      "read error closes descriptor/releases capacity/redacts exception",
+      "two simultaneous snapshots reject third then release capacity"
+    ]
+  },
+  "graph_transport": {
+    "scope": "Synthetic hand-authored ONNX graph with deterministic untrained weights; actual API binary download and CPU ORT execution only. NOT actual training, learned model, recipe conformance, device validation or quality proof",
+    "download": {
+      "model_version_id": "model_3591d8901b034fcd96af6e2dfcbf35e6",
+      "sha256": "1e78c5c5ba02a503dde9a287c3070e155e6a90e22e31002e4d4796c206d86975",
+      "bytes": 31585,
+      "verified": true,
+      "scope": "Transfer integrity only; no device or model-quality approval"
+    },
+    "onnx_checker": true,
+    "downloaded_graph_raw_parity": {
+      "batch_sizes": [
+        1,
+        2,
+        32
+      ],
+      "samples": 35,
+      "exact_equal": true,
+      "max_absolute_error": 0.0
+    },
+    "independent_numpy_formula_allclose": true,
+    "versions": {
+      "onnx": "1.20.1",
+      "onnxruntime": "1.23.2",
+      "numpy": "2.3.5"
+    }
+  },
+  "numeric_worker": {
+    "recipe": "logistic-regression/v1",
+    "actual_training": true,
+    "registered": true,
+    "actual_predictions_classes": [
+      0,
+      1
+    ],
+    "stop_followed_by_503": true,
+    "scope": "Synthetic numeric CPU lifecycle, not ONNX training or business quality"
+  },
+  "cleanup": {
+    "ephemeral_runtime_directories_remaining": 0,
+    "qa_python_service_processes_remaining": []
+  },
+  "limitations": [
+    "Current learned YOLO/ONNX retraining not executed: official locked Jinja2 wheel returned proxy HTTP 403; no bypass attempted",
+    "ONNX smoke uses hand-authored deterministic untrained test graph, not a trained model or recipe-conformance proof",
+    "No physical edge device, TensorRT, RKNN, production approval, webhook or flight-platform integration tested"
+  ],
+  "publication": {
+    "pushed": false,
+    "merged": false
+  }
+}

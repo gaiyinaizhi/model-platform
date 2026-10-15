@@ -15,6 +15,7 @@ from .store import Store
 from .datasets import DatasetStore
 from .dataset_validation import MAX_ARCHIVE_BYTES
 from .supervisor import Supervisor
+from .delivery import Delivery, CHUNK
 
 
 class Auth:
@@ -54,6 +55,7 @@ class Auth:
 
 def make_handler(store, supervisor, auth):
     datasets = DatasetStore(store.runtime)
+    delivery = Delivery(store)
 
     class Handler(JsonHandler):
         def do_GET(self):
@@ -90,7 +92,8 @@ def make_handler(store, supervisor, auth):
                         int(limit) if limit is not None else None, query.get("cursor"))
                 else:
                     status, result = self.route(method, parts, tenant)
-                self.respond(status, result)
+                if result is not None:
+                    self.respond(status, result)
             except Problem as exc:
                 self.handle_problem(exc)
             except (BrokenPipeError, ConnectionResetError):
@@ -121,6 +124,35 @@ def make_handler(store, supervisor, auth):
             return raw
 
         def route(self, method, parts, tenant):
+            if method == "GET" and parts == ["worker-readiness"]:
+                from .worker_readiness import public_report
+                return 200, public_report(store, tenant)
+            if method == "GET" and len(parts) == 3 and parts[0] == "models":
+                if parts[2] == "delivery":
+                    return 200, delivery.manifest(tenant, parts[1])
+                if parts[2] == "artifact":
+                    # Range/conditional caching is deliberately unsupported in v1.
+                    if self.headers.get("Range") or self.headers.get("If-Range"):
+                        raise Problem(400, "range_unsupported", "Partial artifact downloads are unsupported")
+                    with delivery.snapshot(tenant, parts[1]) as (model, stream):
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/octet-stream")
+                        self.send_header("Content-Length", str(model['artifact_bytes']))
+                        self.send_header("X-Artifact-SHA256", model['artifact_sha256'])
+                        self.send_header("ETag", '"' + model['artifact_sha256'] + '"')
+                        self.send_header("Content-Disposition", 'attachment; filename="' + model['model_version_id'] + '.onnx"')
+                        self.send_header("Cache-Control", "no-store")
+                        self.send_header("X-Content-Type-Options", "nosniff")
+                        self.send_header("Connection", "close")
+                        self.end_headers()
+                        self.close_connection = True
+                        try:
+                            while chunk := stream.read(CHUNK):
+                                self.wfile.write(chunk)
+                        except OSError:
+                            # Never append a JSON error after binary success headers.
+                            pass
+                    return 200, None
             if parts == ["model-comparisons"] and method == "POST":
                 body = self.body()
                 object_fields(body, ('model_version_ids',))

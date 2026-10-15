@@ -40,3 +40,7 @@ Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，�
 已新增[YOLO 矩形框 ZIP 导入、校验和不可变数据集版本](dataset-imports.md)。已进一步新增[版本绑定多类别 CPU 训练、日志/评估/部署关联及兼容实验比较](dataset-training.md)。完整资产管理、设备与 GPU 支持仍未实施。现有固定 Cat 配方及其质量限制保持不变。
 
 自定义数据集模型持续推理沿用已有生命周期，新增[服务身份与协议校验](dataset-serving.md)及独立进程回归；实际训练模型/浏览器验收以单独证据为准，不代表生产部署。
+
+## CPU ONNX 交付第一步（2026-10-15）
+
+新增鉴权 [ONNX 下载与交付 manifest](edge-delivery.md)，保留真实预后处理、类别、血缘和质量边界；新增 [独立 Worker 心跳/依赖就绪](cpu-worker-deployment.md)。实际验证结果见交付文档；尚未实现目标设备转换、实机验收、Webhook 或生产许可审批。

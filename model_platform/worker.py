@@ -5,6 +5,7 @@ import time
 from .algorithm import TrainingFailure
 from .common import RECIPE, Problem, environment, training_request
 from .store import Store
+from .worker_readiness import WorkerHeartbeat, probe_dependencies
 
 # Match provenance to this process's loaded code, not a later on-disk edit.
 EXECUTION_ENVIRONMENT = environment()
@@ -46,11 +47,17 @@ def run_worker(runtime, once=False):
         store = Store(runtime)
         recovered = store.recover_worker()
         print(f"worker started; interrupted attempts: {recovered}", flush=True)
-        while True:
-            job = store.claim()
-            if job:
-                execute(store, *job)
-            if once:
-                return
-            if not job:
-                time.sleep(0.25)
+        heartbeat = WorkerHeartbeat(runtime, probe_dependencies()).start()
+        try:
+            while True:
+                job = store.claim()
+                if job:
+                    heartbeat.set_state("busy")
+                    execute(store, *job)
+                    heartbeat.set_state("idle")
+                if once:
+                    return
+                if not job:
+                    time.sleep(0.25)
+        finally:
+            heartbeat.stop()
