@@ -46,3 +46,7 @@ htmlcov/
 /.runtime/
 
 /.venv-fashion/
+
+# Isolated optional dataset-validation environment
+.venv-datasets/
+.venv-stdlib/

@@ -12,6 +12,8 @@ from .common import (CONTRACT, MAX_ACTIVE_RUNS, MAX_DEPLOYMENTS, Problem,
 from .http_support import BoundedHTTPServer, JsonHandler
 from .recipes import recipe_ids, public_catalog
 from .store import Store
+from .datasets import DatasetStore
+from .dataset_validation import MAX_ARCHIVE_BYTES
 from .supervisor import Supervisor
 
 
@@ -51,6 +53,8 @@ class Auth:
 
 
 def make_handler(store, supervisor, auth):
+    datasets = DatasetStore(store.runtime)
+
     class Handler(JsonHandler):
         def do_GET(self):
             self.dispatch("GET")
@@ -94,7 +98,49 @@ def make_handler(store, supervisor, auth):
             except Exception:
                 self.handle_problem(Problem(500, "internal_error", "Internal operation failed"))
 
+        def archive_body(self):
+            if self.headers.get("Transfer-Encoding"):
+                raise Problem(400, "invalid_input", "Chunked requests are unsupported")
+            lengths = self.headers.get_all("Content-Length", [])
+            if len(lengths) != 1 or not lengths[0].isascii() or not lengths[0].isdecimal():
+                raise Problem(400, "invalid_input", "One decimal Content-Length required")
+            if len(lengths[0]) > 10 or not 0 < int(lengths[0]) <= MAX_ARCHIVE_BYTES:
+                raise Problem(413, "body_limit", "ZIP upload must be 1 byte to 32 MiB")
+            if len(self.headers.get_all("Content-Type", [])) != 1 or self.headers.get_content_type() != "application/zip":
+                raise Problem(400, "invalid_input", "application/zip required")
+            if self.headers.get("Content-Encoding"):
+                raise Problem(400, "invalid_input", "Content-Encoding is unsupported")
+            import socket
+            size = int(lengths[0])
+            try:
+                raw = self.rfile.read(size)
+                if len(raw) != size:
+                    raise ValueError("Truncated ZIP")
+            except (ValueError, socket.timeout):
+                raise Problem(400, "invalid_archive_body", "Incomplete ZIP upload; retry with the same import ID") from None
+            return raw
+
         def route(self, method, parts, tenant):
+            if parts == ["dataset-imports"] and method == "POST":
+                keys = self.headers.get_all("Idempotency-Key", [])
+                if len(keys) != 1:
+                    raise Problem(400, "invalid_input", "One Idempotency-Key required")
+                result, created = datasets.create(tenant, keys[0], self.body())
+                return (201 if created else 200), result
+            if parts == ["dataset-versions"] and method == "GET":
+                return 200, datasets.list_versions(tenant)
+            if len(parts) == 2 and method == "GET":
+                if parts[0] == "dataset-imports":
+                    return 200, datasets.get_import(tenant, parts[1])
+                if parts[0] == "dataset-versions":
+                    return 200, datasets.get_version(tenant, parts[1])
+            if len(parts) == 3 and parts[0] == "dataset-imports" and method == "POST":
+                if parts[2] == "archive":
+                    return 200, datasets.upload(tenant, parts[1], self.archive_body)
+                if parts[2] == "publish":
+                    object_fields(self.body(), ())
+                    result, created = datasets.publish(tenant, parts[1])
+                    return (201 if created else 200), result
             if method == "GET" and parts == ["recipes"]:
                 return 200, {"recipes": public_catalog()}
             if method == "GET" and parts == ["health"]:

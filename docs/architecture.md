@@ -78,3 +78,7 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 ## 业务接入 API 增量
 
 鉴权 `GET /recipes`、部署可选幂等以及集合显式稳定cursor分页已加入；无query集合与无key部署保持旧客户端行为。详情、安全边界与质量字段见 [integration-api.md](integration-api.md)。它不改变训练/模型技术血缘、静态注册或YOLOX禁止生产状态。
+
+## 自定义 YOLO 数据集版本增量
+
+2026-10-15：独立 staged import → ZIP validation report → explicit immutable version publication。技术对象仍由 model-platform 主写，tenant 来自 Bearer；没有新增训练配方、任意执行或网络下载。数据集专用 ZIP 路由采用独立32 MiB传输/128 MiB展开/像素预算，原 JSON 和 Cat 流程不变。完整契约、事务/恢复边界和限制见 [dataset-imports.md](dataset-imports.md)。

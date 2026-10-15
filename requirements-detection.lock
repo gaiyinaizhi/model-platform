@@ -9,4 +9,4 @@
 # Install: .venv-fashion/bin/python -m pip install -r requirements-detection.lock
 -r requirements-fashion.lock
 pycocotools==2.0.11 --hash=sha256:a82d1c9ed83f75da0b3f244f2a3cf559351a283307bd9b79a4ee2b93ab3231dd
-Pillow==12.3.0 --hash=sha256:78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91
+-r requirements-datasets.lock

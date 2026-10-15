@@ -34,3 +34,7 @@ Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，�
 ## 检测与 mAP 增量
 
 用户明确要求真实 YOLO 目标检测与 mAP，已按独立检测契约实施 `yolox-nano-cat/v1`，不以分类代替检测、不修改 vision-lab。官方 Apache-2.0 YOLOX-Nano 固定源码、从零CPU训练、Open Images Cat 固定128训练/32验证/32测试、官方pycocotools评估、ONNX框预测及版本服务生命周期。实际验收状态和质量限制见 [detection.md](detection.md)，数据许可/来源见 [detection-data.md](detection-data.md)。更多类别、GPU、业务集成和设备验收仍未实施。
+
+## 自定义数据集第一步（2026-10-15）
+
+已新增[YOLO 矩形框 ZIP 导入、校验和不可变数据集版本](dataset-imports.md)。自定义类别训练、训练进度/评估/部署绑定、完整资产管理、设备与 GPU 支持仍未实施。现有固定 Cat 配方及其质量限制保持不变。

@@ -1,0 +1,10 @@
+# Optional local dataset validation only; no training or remote downloads.
+# Linux x86_64 / CPython 3.12 wheels, source: official PyPI release JSON.
+# Pillow decodes images and checks pixels; writing a new decoder is unsafe.
+# PyYAML safely parses the bounded inert metadata subset; no constructors,
+# aliases, tags, download commands or network paths are accepted.
+# https://pypi.org/pypi/pillow/12.3.0/json
+# https://pypi.org/pypi/PyYAML/6.0.3/json
+# Install: python -m pip install --require-hashes --only-binary=:all: -r requirements-datasets.lock
+Pillow==12.3.0 --hash=sha256:78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91
+PyYAML==6.0.3 --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc
