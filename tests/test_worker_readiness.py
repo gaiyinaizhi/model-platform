@@ -55,6 +55,10 @@ class WorkerReadinessTests(unittest.TestCase):
         self.assertTrue(report['worker']['ready'])
         self.assertFalse(report['worker']['accepting_immediately'])
         self.assertEqual(report['worker']['state'], 'busy')
+        self.assertEqual(report['worker']['reasons'], ['worker_busy'])
+        numeric = next(r for r in report['recipes'] if r['id'] == RECIPE)
+        self.assertTrue(numeric['ready'])
+        self.assertEqual(numeric['reasons'], [])
         first = report['worker']['checked_at']
         deadline = time.monotonic() + 2
         while self.report()['worker']['checked_at'] <= first and time.monotonic() < deadline:
@@ -74,7 +78,41 @@ class WorkerReadinessTests(unittest.TestCase):
             report = self.report()
             self.assertEqual(report['worker']['state'], 'stale')
             self.assertFalse(report['worker']['fresh'])
+            self.assertEqual(report['worker']['reasons'], ['worker_stale'])
             self.assertTrue(all(not r['ready'] for r in report['recipes']))
+
+    def test_tenant_position_is_not_global_and_claim_ties_are_stable(self):
+        own = [self.store.submit('demo', str(i), request_body())[0] for i in range(3)]
+        foreign, _ = self.store.submit('other', 'foreign', request_body())
+        with self.runtime.connection() as db:
+            db.execute("UPDATE runs SET created_at=1.0")
+        for position, run_id in enumerate(sorted(own), 1):
+            self.assertEqual(self.store.run('demo', run_id)['queue'],
+                             {'scope': 'tenant', 'position': position})
+        from model_platform.common import Problem
+        with self.assertRaises(Problem) as caught:
+            self.store.run('demo', foreign)
+        self.assertEqual(caught.exception.status, 404)
+        for run_id in sorted(own + [foreign]):
+            run, attempt = self.store.claim()
+            self.assertEqual(run['id'], run_id)
+            self.assertEqual(self.store.run(run['tenant'], run_id)['queue'],
+                             {'scope': 'tenant', 'position': None})
+            self.store.fail(run_id, attempt, 'test_failure')
+            self.assertIsNone(self.store.run(run['tenant'], run_id)['queue']['position'])
+
+    def test_retry_keeps_original_creation_order(self):
+        first, _ = self.store.submit('demo', 'first', request_body())
+        run, attempt = self.store.claim()
+        self.store.fail(first, attempt, 'test_failure')
+        second, _ = self.store.submit('demo', 'second', request_body())
+        with self.runtime.connection() as db:
+            db.execute("UPDATE runs SET created_at=1.0 WHERE id=?", (first,))
+            db.execute("UPDATE runs SET created_at=2.0 WHERE id=?", (second,))
+        self.store.retry('demo', first)
+        self.assertEqual(self.store.run('demo', first)['queue']['position'], 1)
+        self.assertEqual(self.store.run('demo', second)['queue']['position'], 2)
+        self.assertEqual(self.store.claim()[0]['id'], first)
 
     def test_probe_actual_import_and_metadata_failures_redacted(self):
         def imports(name):

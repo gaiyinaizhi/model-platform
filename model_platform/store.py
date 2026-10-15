@@ -121,7 +121,14 @@ class Store:
 
     def run(self, tenant, run_id):
         with self.runtime.connection() as db:
+            db.execute("BEGIN")
             row = self._owned(db, "runs", tenant, run_id)
+            position = None
+            if row['status'] == 'queued':
+                position = db.execute(
+                    "SELECT count(*) FROM runs WHERE tenant=? AND status='queued' "
+                    "AND (created_at < ? OR (created_at = ? AND id <= ?))",
+                    (tenant, row['created_at'], row['created_at'], run_id)).fetchone()[0]
             body = json.loads(row["input_json"])
             result = {k: row[k] for k in ("id", "status", "created_at", "updated_at", "request_sha256", "model_version_id")}
             from .recipes import get_recipe
@@ -135,6 +142,7 @@ class Store:
                 train_count, evaluation_count = get_recipe(body.get("recipe", RECIPE)).counts(body["dataset"])
                 dataset = {"source": body["dataset"]["source"], "version": body["dataset"]["version"],
                            "sha256": digest(body["dataset"]), "train_count": train_count, "evaluation_count": evaluation_count}
+            result["queue"] = {"scope": "tenant", "position": position}
             result.update(recipe=body.get("recipe", RECIPE), environment=json.loads(row["environment_json"]),
                           dataset=dataset, config=body["config"],
                           business_ref=body.get("business_ref"), attempts=[])
@@ -267,7 +275,7 @@ class Store:
     def claim(self):
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            run = db.execute("SELECT * FROM runs WHERE status='queued' ORDER BY created_at LIMIT 1").fetchone()
+            run = db.execute("SELECT * FROM runs WHERE status='queued' ORDER BY created_at,id LIMIT 1").fetchone()
             if not run:
                 return None
             number = db.execute("SELECT count(*)+1 FROM attempts WHERE run_id=?", (run["id"],)).fetchone()[0]

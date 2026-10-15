@@ -263,6 +263,33 @@ class PlatformTests(unittest.TestCase):
         self.assertEqual(self.call("/deployments/" + deployments[0]["id"] + "/stop", {})[0], 200)
         self.assertEqual(self.call("/deployments", {"model_version_id": run["model_version_id"]})[0], 202)
 
+    def test_busy_readiness_and_owned_queue_http_contract(self):
+        from model_platform.worker_readiness import WorkerHeartbeat
+        own = self.submit(key='own-queue')['id']
+        foreign, _ = self.store.submit('other', 'private-queue', request_body())
+        hb = WorkerHeartbeat(self.runtime, {}).start()
+        self.addCleanup(hb.stop)
+        hb.set_state('busy')
+        code, report = self.call('/worker-readiness')
+        self.assertEqual(code, 200)
+        self.assertTrue(report['worker']['ready'])
+        self.assertFalse(report['worker']['accepting_immediately'])
+        self.assertEqual(report['worker']['reasons'], ['worker_busy'])
+        self.assertEqual(report['queue'], {'queued': 1, 'running': 0})
+        self.assertNotIn(foreign, json.dumps(report))
+        code, run = self.call('/runs/' + own)
+        self.assertEqual(code, 200)
+        self.assertEqual(run['queue'], {'scope': 'tenant', 'position': 1})
+        self.assertIsNone(run['model_version_id'])
+        self.assertNotIn('evaluation', run)
+        self.assertEqual(self.call('/runs/' + foreign)[0], 404)
+        claimed, attempt = self.store.claim()
+        self.store.fail(claimed['id'], attempt, 'evaluation_failed')
+        code, failed = self.call('/runs/' + claimed['id'], tenant=claimed['tenant'])
+        self.assertIsNone(failed['queue']['position'])
+        self.assertIsNone(failed['model_version_id'])
+        self.assertEqual(failed['attempts'][0]['error_code'], 'evaluation_failed')
+
     def test_actual_serving_readiness_stop_and_tenant_isolation(self):
         run = self.train()
         deployment = self.deploy(run["model_version_id"])

@@ -206,7 +206,12 @@ class DetectionEvaluationMetricTests(unittest.TestCase):
     def test_empty_predictions_and_nonoverlapping_prediction_have_zero_ap(self):
         data = list(fixture())
         data[2] = []
-        self.assert_ap(evaluate_detections(*data), 0)
+        result = evaluate_detections(*data)
+        self.assert_ap(result, 0)
+        self.assertEqual(result['status'], 'evaluated')
+        self.assertEqual(result['counts']['predictions'], 0)
+        self.assertEqual(result['counts']['ground_truth_boxes'], 1)
+        self.assertEqual(result['per_class'][0]['status'], 'evaluated')
         data = list(fixture())
         data[2][0]["bbox"] = [50, 50, 70, 70]
         self.assert_ap(evaluate_detections(*data), 0)

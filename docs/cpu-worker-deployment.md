@@ -111,3 +111,23 @@ API 固定监听 `127.0.0.1`。**不要修改绑定地址，也不要把开发 H
 可选真实配方的数据准备与演示分别见 [Fashion](fashion.md)、[Cat 检测](detection.md) 和 [自定义数据集训练](dataset-training.md)。ONNX 下载交付见 [端侧交付](edge-delivery.md)。目标主机验收应另记录实际命令、环境、通过/失败/跳过；本文不代替执行证据。
 
 当前没有 cgroup、CPU/RSS 硬配额、独立 OS 用户隔离、分布式 Worker、自动重试或训练取消。进程分离、队列逻辑预算与 tenant 对象隔离不能称为生产多租户安全沙箱。
+
+## 6. 忙态原因与排队位置（2026-10-15 增补）
+
+`worker.state=busy` 时，`worker.ready=true`、`accepting_immediately=false`，
+`worker.reasons=["worker_busy"]`。这是单 Worker 正在执行的提示，不是故障；
+`recipes[].ready` 仍独立按存活及依赖检查，不会因忙态变为 false。
+过期/停止/缺席分别使用 `worker_stale` / `worker_stopped` / `worker_absent`，
+不沿用过期的 busy 作为实时结论。检查配方依赖失败请看该配方的 reasons。
+
+`GET /runs/{id}` 新增 `queue: {"scope":"tenant", "position":1}`。
+position 从 1 开始，只表示当前租户的 queued 任务中的相对顺序；
+非 queued（包括 running、failed、succeeded）为 null。
+运行中任务不计入位置，其他租户的任务不计入位置，也不披露它们的 ID、数量或时间。
+因此 position=1 不代表全局下一项，更不是等待时长或完成承诺。
+界面建议显示“本租户排队第 1；Worker 忙”，不要显示“全局第 1”。
+原 readiness.queue 的 queued/running 计数及租户范围保持不变。
+
+领取顺序明确为原始 `created_at` 升序，相同时间按 `id` 升序；位置与领取使用同一排序。
+显式 retry 保留原始创建优先级，不按重试时间移至队尾。位置只是一次数据库快照，
+后续领取、提交或重试可能改变位置；没有 ETA。读取 run 的状态和位置使用同一快照。

@@ -133,13 +133,14 @@ def public_report(store, tenant):
     fresh = row is not None and 0 <= age <= STALE_AFTER_SECONDS
     state = 'absent' if row is None else 'stopped' if row['state'] == 'stopped' else row['state'] if fresh else 'stale'
     ready = fresh and state in ('idle', 'busy')
-    reasons = [] if ready else ['worker_' + state]
+    unready_reasons = [] if ready else ['worker_' + state]
+    reasons = ['worker_busy'] if ready and state == 'busy' else list(unready_reasons)
     deps = json.loads(row['dependencies_json']) if row else {}
     recipes = []
     for spec in REGISTRY.values():
         dependencies = [deps.get(name, {'name': name, 'available': False, 'version': None,
                                        'reason': 'dependency_not_checked'}) for name in spec.optional_dependencies]
-        recipe_reasons = list(reasons)
+        recipe_reasons = list(unready_reasons)
         if any(not item['available'] for item in dependencies):
             recipe_reasons.append('dependencies_unavailable')
         recipes.append({'id': spec.id, 'ready': ready and not recipe_reasons,

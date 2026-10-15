@@ -93,3 +93,25 @@
 - 服务、临时运行目录和临时测试凭据均已清理；未改前端、推送、合并、部署到飞控或放开生产许可
 
 可复现的下载调用见上节脚本；脚本只接受已有本地身份及受信任 loopback API。端侧消费者仍需核对协议版本、类别映射、预后处理、实际运行环境和应用目标，不能仅核对文件摘要就宣称接入完成。
+
+## 检测 mAP 的 null / 0 与评估状态
+
+模型详情 `GET /models/{id}` 和 ONNX 交付清单的顶层 `evaluation` 都是已登记的评估对象，
+直接读取 `evaluation.status`、`evaluation.map_50`、`evaluation.map_50_95` 和 `evaluation.counts`。
+本节适用于检测配方；分类配方使用其各自指标，不应强求 map 字段。
+
+- `status="evaluated"` 且评估集中存在 GT 框：已执行评估，mAP 是数值。
+  没有任何预测时 mAP 为 **0**，`counts.predictions=0`、`counts.ground_truth_boxes>0`；
+  全部预测不匹配也可能为 0，所以仅凭 0 无法断定没有预测。
+- `status="no_ground_truth"`：评估已执行，但整个评估集合没有 GT 框，
+  mAP50 / mAP50:95 为 **null**（指标不适用），不是“没评估”，也不能填成 0。
+  即使有预测，仍不能计算该 AP；参考 `counts.predictions` 解释是否存在输出。
+- `evaluation.per_class[]` 的 `status="no_ground_truth"` 与 `ap_50=null` 只针对该类别。
+  其他有 GT 的类别仍可评估，总体 mAP 可为数值，宏平均排除无 GT 类别。
+- “未评估/评估失败”不能由 mAP=null 推断：queued/running 尚无成功登记的模型；
+  失败看 `GET /runs/{id}` 的 status 与 attempts[].error_code。只有执行和登记成功才有
+  可下载的模型及交付评估。本版检测 evaluation.status 只有上述两个值，
+  没有另行实现 `not_evaluated` 或 `failed` 评估枚举，不应编造它们。
+
+样本少并非返回 null 的直接规则；应核对实际评估 split、GT 数量和 status。
+小样本指标即使非 null 也不能证明泛化能力或生产适用性。

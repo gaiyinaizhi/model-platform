@@ -60,3 +60,10 @@ ONNX 自描述元数据包括新配方/格式/契约、规范 JSON 类别映射�
 - 前两者同评估口径可比；第三者明确 validation-only，蓝色类别在 val 无真值，逐类别 AP 为 null，跨 test/val 比较拒绝
 - 同一登记模型的独立 CPU ONNX 重载/预测再次通过，输出[1,525,7]且全部有限；阈值后0框。这是实际推理验证，没有宣称新增推理界面或 custom 持续部署生命周期已验收
 - 原始技术 ID、数据/产物/代码摘要、实际参数/损失/逐类别指标及一致性结果见 [dataset-training-verification.json](dataset-training-verification.json)。前端导航恢复的修复/浏览器复验单独记录
+
+### 接入方展示评估状态
+
+检测结果的 `evaluation.status`、null 与零值区分见
+[交付评估语义](edge-delivery.md#检测-map-的-null--0-与评估状态)：有 GT 且无预测是已评估的 0，
+无 GT 是已执行但 AP 不适用的 null；不能把 null 统一解释为未评估，也不能用小样本数量推断。
+任务排队相对位置与重试优先级见 [Worker 忙态及排队](cpu-worker-deployment.md#6-忙态原因与排队位置2026-10-15-增补)。
