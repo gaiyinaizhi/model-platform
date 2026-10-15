@@ -369,6 +369,9 @@ class Store:
             row.update(contract=manifest["contract"], runtime=runtime, resources={"processes": 1, "gpu": 0,
                        "hard_cpu_memory_isolation": False}, ready=row["observed"] == "ready" and row["desired"] == "running",
                        endpoint=f"/deployments/{deployment_id}/predict")
+            if manifest.get("recipe") == "yolox-nano-dataset/v1":
+                from .dataset_serving import public_identity
+                row.update(public_identity(manifest))
             return row
 
     def stop_desired(self, tenant, deployment_id):

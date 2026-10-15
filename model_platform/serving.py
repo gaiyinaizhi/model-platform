@@ -30,11 +30,8 @@ def serve(runtime, deployment_id, fd, parent_pid):
         raise ValueError("Model manifest contract mismatch")
 
     if manifest.get('recipe') == 'yolox-nano-dataset/v1':
-        data = manifest['dataset']
-        expected = {key: data[key] for key in ('dataset_version_id', 'train_sha256', 'evaluation_sha256', 'evaluation_split')}
-        expected['dataset_sha256'] = data['sha256']
-        if model['class_names'] != manifest.get('class_names') or model['dataset_lineage'] != expected:
-            raise ValueError('Model class mapping or dataset lineage mismatch')
+        from .dataset_serving import validate_identity
+        validate_identity(manifest, model)
 
     class Handler(JsonHandler):
         def do_POST(self):
@@ -50,7 +47,11 @@ def serve(runtime, deployment_id, fd, parent_pid):
                 body = self.body()
                 object_fields(body, ("features",))
                 result = spec.predict(model, body["features"])
-                self.respond(200, {"deployment_id": deployment_id, "model_version_id": manifest["model_version_id"],
+                identity = {}
+                if manifest.get("recipe") == "yolox-nano-dataset/v1":
+                    from .dataset_serving import public_identity
+                    identity = public_identity(manifest)
+                self.respond(200, {**identity, "deployment_id": deployment_id, "model_version_id": manifest["model_version_id"],
                                    "artifact_sha256": manifest["artifact_sha256"], "contract": model["contract"], "predictions": result})
             except Problem as exc:
                 self.handle_problem(exc)

@@ -22,7 +22,7 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 - 可选`yolox-nano-cat/v1`：官方 Apache-2.0 YOLOX-Nano 模型、Open Images Cat 128/32/32 独立划分、CPU 从零训练、真实框预测和 pycocotools mAP（test AP50=51.51%、AP50:95=17.21%；存在高置信极端原始框，质量不合格、禁止生产使用）；[契约/验收状态](docs/detection.md)
 - 可选`fashion-cnn/v1`：官方Fashion-MNIST固定分层6000训练/完整10000 test，小CNN从零训练、ONNX一致性验证与独立CPU持续服务，细节见[Fashion指南](docs/fashion.md)
 - 幂等提交、输入/大小/速率/队列预算、失败日志、最多 3 次执行尝试，重试保留失败历史
-- 每部署一个独立 CPU 推理进程，绑定明确模型版本；实际预测探测 ready，停止进程后拒绝预测
+- 每部署一个独立 CPU 推理进程，绑定明确模型版本；实际预测探测 ready，停止进程后拒绝预测；自定义数据集模型返回完整类别/血缘及研究范围，见[持续推理契约](docs/dataset-serving.md)
 - API 崩溃后的持久化期望状态恢复；Worker 中断在下次启动登记为 failed，显式重试，不静默重训
 
 ## 环境要求

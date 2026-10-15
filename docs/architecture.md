@@ -86,3 +86,7 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 ## 数据集版本绑定训练增量
 
 2026-10-15：新增 `yolox-nano-dataset/v1`。提交事务写入不可变 run→版本关联，Worker 多阶段校验快照；多类别 ONNX模型与配置、代码、环境、评估、模型技术版本相连。val/test 明确区分，比较要求相同评估数据/类别/协议。固定 Cat 兼容；完整请求、预算、错误和服务契约见 [dataset-training.md](dataset-training.md)。
+
+## 自定义数据集模型服务身份
+
+2026-10-15：复用显式 deployment 生命周期，新增模型/训练/数据集/评估身份及固定推理协议、研究范围输出；加载与每次响应做一致性校验，停止重放不重启，API恢复不替换模型。详见[dataset-serving.md](dataset-serving.md)。

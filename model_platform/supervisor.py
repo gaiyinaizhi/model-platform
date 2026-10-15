@@ -19,6 +19,7 @@ class Instance:
     port: int
     capability: str
     manifest: dict
+    deployment_id: str
 
 
 class Supervisor:
@@ -44,10 +45,15 @@ class Supervisor:
             if len(raw) > 65536:
                 raise ValueError("Internal response too large")
             result = json.loads(raw)
-        if (result.get("model_version_id") != instance.manifest["model_version_id"] or
+        if (result.get("deployment_id") != instance.deployment_id or
+                result.get("model_version_id") != instance.manifest["model_version_id"] or
                 result.get("artifact_sha256") != instance.manifest["artifact_sha256"] or
                 result.get("contract") != instance.manifest["contract"]):
             raise ValueError("Serving version mismatch")
+        if instance.manifest.get("recipe") == "yolox-nano-dataset/v1":
+            from .dataset_serving import public_identity
+            if any(result.get(key) != value for key, value in public_identity(instance.manifest).items()):
+                raise ValueError("Serving dataset identity mismatch")
         return result
 
     def _spawn(self, row):
@@ -65,7 +71,7 @@ class Supervisor:
                                         "--fd", str(sock.fileno()), "--parent", str(os.getpid())],
                                        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                        pass_fds=(sock.fileno(),), env=env)
-            instance = Instance(process, port, capability, manifest)
+            instance = Instance(process, port, capability, manifest, row["id"])
             self.instances[row["id"]] = instance
             process.stdin.write((capability + "\n").encode())
             process.stdin.close()
