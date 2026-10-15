@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-12",
+  "scope": "internal-static-registry-and-cpu-ci/v1",
+  "environment": {
+    "python": "3.12.14",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "code_sha256": "e77573939e0850d00a34892d9f72b752c63f6d16b419ff8a1999f94c3d9f1515",
+    "dependencies": "base=stdlib-only; optional recipe dependencies recorded in manifest",
+    "supported_recipes": [
+      "logistic-regression/v1",
+      "softmax-digits/v1",
+      "fashion-cnn/v1"
+    ]
+  },
+  "checks": {
+    "compileall": "passed",
+    "stdlib_suite": {
+      "discovered": 91,
+      "passed": 80,
+      "skipped": 11,
+      "failed": 0
+    },
+    "optional_ml_full_suite": {
+      "discovered": 91,
+      "passed": 91,
+      "skipped": 0,
+      "failed": 0
+    },
+    "ci_onnx_guarded_suite": {
+      "discovered": 17,
+      "passed": 17,
+      "skipped": 0,
+      "failed": 0
+    },
+    "registry_boundary_tests": 16,
+    "fresh_hash_locked_dependency_install": "passed",
+    "pip_check": "passed",
+    "github_hosted_actions": "not_run"
+  },
+  "real_demo_regressions": [
+    {
+      "recipe": "logistic-regression/v1",
+      "artifact_sha256": "e22432c0cefbc12a28476b5d825714cf2ebe2841037b6aec71aa9f16288b0c68",
+      "byte_identical_to_pre_refactor": true,
+      "accuracy": 1.0,
+      "sample_count": 4,
+      "old_manifest_loaded_and_served_without_mutation": true,
+      "stop_then_http_503": true
+    },
+    {
+      "recipe": "softmax-digits/v1",
+      "artifact_sha256": "7f33c2f690a82691ee4645ab6a5725587ed2b00d730f6371c099c1a6a8a7d1e8",
+      "byte_identical_to_pre_refactor": true,
+      "accuracy": 0.9499165275459098,
+      "sample_count": 1797,
+      "old_manifest_loaded_and_served_without_mutation": true,
+      "stop_then_http_503": true,
+      "macro_f1": 0.9501111995181309
+    },
+    {
+      "recipe": "fashion-cnn/v1",
+      "artifact_sha256": "c3d72d128db7f713c0370c43ca37843ff36c7fd3bc8d3da22538b4c613687c2d",
+      "byte_identical_to_pre_refactor": true,
+      "accuracy": 0.8076,
+      "sample_count": 10000,
+      "old_manifest_loaded_and_served_without_mutation": true,
+      "stop_then_http_503": true,
+      "macro_f1": 0.8048124060337505,
+      "onnx_parity": {
+        "full_test_sample_count": 10000,
+        "full_test_argmax_agreement": 1.0,
+        "full_test_max_absolute_logit_error": 1.33514404296875e-05,
+        "passed": true
+      }
+    }
+  ],
+  "limitations": "Local Linux CPU verification only. Cached public datasets were rehashed; no new dataset downloads. CI shell steps passed locally; GitHub-hosted Actions not yet run. No production isolation or vision-lab integration."
+}

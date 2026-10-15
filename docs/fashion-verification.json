@@ -1,0 +1,576 @@
+{
+  "case": "fashion-mnist-cnn-onnx-cpu/v1",
+  "completed_at_utc": "2026-10-12T13:59:08.820561+00:00",
+  "run_id": "run_a7fcbc98ff8c41878b10bcdcab2bc438",
+  "model_version_id": "model_f5ef5822cf5347e39c7d1e910a528e4a",
+  "artifact_sha256": "c3d72d128db7f713c0370c43ca37843ff36c7fd3bc8d3da22538b4c613687c2d",
+  "artifact_bytes": 48485,
+  "recipe": "fashion-cnn/v1",
+  "config": {
+    "batch_size": 128,
+    "epochs": 5,
+    "learning_rate": 0.001,
+    "seed": 20261012,
+    "train_count": 6000
+  },
+  "dataset_audit": {
+    "evaluation_count": 10000,
+    "evaluation_sha256": "3eac1c1b7dd1d7faf05fef09652be718bdca53db35ca54e62f57bcc958296940",
+    "official_train_count": 60000,
+    "provenance": {
+      "class_order": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "dataset_sha256": "01d38a66ca7d81893cf78ac8c051f3dbba56c71970c2c136b049deb42cd49806",
+      "evaluation_count": 10000,
+      "files": {
+        "t10k-images-idx3-ubyte.gz": {
+          "compressed_bytes": 4422102,
+          "count": 10000,
+          "kind": "images",
+          "md5": "bef4ecab320f06d8554ea6380940ec79",
+          "raw_bytes": 7840016,
+          "sha256": "346e55b948d973a97e58d2351dde16a484bd415d4595297633bb08f03db6a073"
+        },
+        "t10k-labels-idx1-ubyte.gz": {
+          "compressed_bytes": 5148,
+          "count": 10000,
+          "kind": "labels",
+          "md5": "bb300cfdad3c16e7a12a480ee83cd310",
+          "raw_bytes": 10008,
+          "sha256": "67da17c76eaffca5446c3361aaab5c3cd6d1c2608764d35dfb1850b086bf8dd5"
+        },
+        "train-images-idx3-ubyte.gz": {
+          "compressed_bytes": 26421880,
+          "count": 60000,
+          "kind": "images",
+          "md5": "8d4fb7e6c68d591d4c3dfef9ec88bf0d",
+          "raw_bytes": 47040016,
+          "sha256": "3aede38d61863908ad78613f6a32ed271626dd12800ba2636569512369268a84"
+        },
+        "train-labels-idx1-ubyte.gz": {
+          "compressed_bytes": 29515,
+          "count": 60000,
+          "kind": "labels",
+          "md5": "25c81989df183df01b3e8a0aad5dffbe",
+          "raw_bytes": 60008,
+          "sha256": "a04f17134ac03560a47e3764e11b92fc97de4d1bfaf8ba1a3aa29af54cc90845"
+        }
+      },
+      "filtering": "none; official split and record order retained",
+      "labels": [
+        "T-shirt/top",
+        "Trouser",
+        "Pullover",
+        "Dress",
+        "Coat",
+        "Sandal",
+        "Shirt",
+        "Sneaker",
+        "Bag",
+        "Ankle boot"
+      ],
+      "license": "MIT",
+      "license_sha256": "13ef4788476d292858fa60eb9a5f74aeca5c65770bc885ccaa05823a17ef7be1",
+      "license_url": "https://raw.githubusercontent.com/zalandoresearch/fashion-mnist/b2617bb6d3ffa2e429640350f613e3291e10b141/LICENSE",
+      "official_split": true,
+      "pixel_range": [
+        0,
+        255
+      ],
+      "reference": "fashion-mnist-official/v1",
+      "shape": [
+        28,
+        28
+      ],
+      "source_commit": "b2617bb6d3ffa2e429640350f613e3291e10b141",
+      "source_url": "https://github.com/zalandoresearch/fashion-mnist",
+      "train_count": 60000
+    },
+    "selection_policy": "Python random.Random(seed).sample 600 indices per class, then sort; official test unchanged",
+    "selection_seed": 20261012,
+    "sha256": "0479bdb1c6de40057b933b865696434a4480d4d1f3b83e40ca30c700e559ecd7",
+    "source": "Fashion-MNIST",
+    "split_policy": "Stratified subset from official training split only; all 10000 official test records retained",
+    "train_count": 6000,
+    "train_sha256": "fe665c9d5405e9a4324b5b7d4894ae30b6ccabebb39f8e6aa592466414b1b641",
+    "training_class_counts": [
+      600,
+      600,
+      600,
+      600,
+      600,
+      600,
+      600,
+      600,
+      600,
+      600
+    ],
+    "training_selection_sha256": "438541bdcc1174727b315c450b389b6fb30fd75ddda4238aaa53df9b42e1d15f",
+    "version": "official-v1"
+  },
+  "evaluation": {
+    "accuracy": 0.8076,
+    "artifact_sha256": "c3d72d128db7f713c0370c43ca37843ff36c7fd3bc8d3da22538b4c613687c2d",
+    "backend": "onnxruntime-cpu",
+    "class_order": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "confusion": [
+      [
+        748,
+        2,
+        5,
+        107,
+        9,
+        5,
+        105,
+        0,
+        19,
+        0
+      ],
+      [
+        0,
+        933,
+        1,
+        44,
+        11,
+        0,
+        9,
+        0,
+        2,
+        0
+      ],
+      [
+        9,
+        1,
+        600,
+        15,
+        219,
+        1,
+        143,
+        0,
+        12,
+        0
+      ],
+      [
+        9,
+        9,
+        1,
+        890,
+        21,
+        1,
+        62,
+        0,
+        7,
+        0
+      ],
+      [
+        1,
+        2,
+        61,
+        65,
+        793,
+        0,
+        72,
+        0,
+        6,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        3,
+        0,
+        920,
+        0,
+        47,
+        4,
+        26
+      ],
+      [
+        154,
+        0,
+        90,
+        75,
+        222,
+        3,
+        426,
+        0,
+        30,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        55,
+        0,
+        880,
+        1,
+        64
+      ],
+      [
+        2,
+        2,
+        1,
+        9,
+        4,
+        7,
+        19,
+        5,
+        949,
+        2
+      ],
+      [
+        0,
+        0,
+        0,
+        2,
+        0,
+        15,
+        0,
+        45,
+        1,
+        937
+      ]
+    ],
+    "dataset_sha256": "3eac1c1b7dd1d7faf05fef09652be718bdca53db35ca54e62f57bcc958296940",
+    "dependencies": {
+      "numpy": "2.3.5",
+      "onnx": "1.20.1",
+      "onnxruntime": "1.23.2",
+      "onnxscript": "0.5.6",
+      "torch": "2.10.0+cpu"
+    },
+    "environment": {
+      "code_sha256": "dd74a334d6d165edf4c5f4e8eb0f4e287a09f866acb6deea4392d32156da193f",
+      "dependencies": "base=stdlib-only; optional recipe dependencies recorded in manifest",
+      "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+      "python": "3.12.14",
+      "supported_recipes": [
+        "logistic-regression/v1",
+        "softmax-digits/v1",
+        "fashion-cnn/v1"
+      ]
+    },
+    "evaluation_seconds": 0.5807674970001244,
+    "inference_seconds": 0.10782705399287806,
+    "limitations": "Official test used only after fixed training/export; not external audit, production quality or device validation",
+    "log_loss": 0.5301679882519147,
+    "macro_f1": 0.8048124060337505,
+    "parity": {
+      "absolute_logit_tolerance": 0.0001,
+      "full_test_argmax_agreement": 1.0,
+      "full_test_argmax_agreement_count": 10000,
+      "full_test_max_absolute_logit_error": 1.33514404296875e-05,
+      "full_test_sample_count": 10000,
+      "passed": true,
+      "training_batches": [
+        {
+          "argmax_agreement": 1.0,
+          "argmax_agreement_count": 1,
+          "batch_size": 1,
+          "max_absolute_logit_error": 1.9073486328125e-06
+        },
+        {
+          "argmax_agreement": 1.0,
+          "argmax_agreement_count": 2,
+          "batch_size": 2,
+          "max_absolute_logit_error": 1.9073486328125e-06
+        },
+        {
+          "argmax_agreement": 1.0,
+          "argmax_agreement_count": 17,
+          "batch_size": 17,
+          "max_absolute_logit_error": 5.7220458984375e-06
+        },
+        {
+          "argmax_agreement": 1.0,
+          "argmax_agreement_count": 128,
+          "batch_size": 128,
+          "max_absolute_logit_error": 8.58306884765625e-06
+        }
+      ],
+      "training_indices_sha256": "370424597018f34b33dc8665c5888bdd66e78ab7b406172f8487d305581fcb18",
+      "training_sample_policy": "First 128 rows in the fixed training selection; never test-selected"
+    },
+    "protocol": "fashion-official-test-onnx/v1",
+    "pytorch_inference_seconds": 0.4303816640003788,
+    "pytorch_reference": {
+      "accuracy": 0.8076,
+      "class_order": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "confusion": [
+        [
+          748,
+          2,
+          5,
+          107,
+          9,
+          5,
+          105,
+          0,
+          19,
+          0
+        ],
+        [
+          0,
+          933,
+          1,
+          44,
+          11,
+          0,
+          9,
+          0,
+          2,
+          0
+        ],
+        [
+          9,
+          1,
+          600,
+          15,
+          219,
+          1,
+          143,
+          0,
+          12,
+          0
+        ],
+        [
+          9,
+          9,
+          1,
+          890,
+          21,
+          1,
+          62,
+          0,
+          7,
+          0
+        ],
+        [
+          1,
+          2,
+          61,
+          65,
+          793,
+          0,
+          72,
+          0,
+          6,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          3,
+          0,
+          920,
+          0,
+          47,
+          4,
+          26
+        ],
+        [
+          154,
+          0,
+          90,
+          75,
+          222,
+          3,
+          426,
+          0,
+          30,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          55,
+          0,
+          880,
+          1,
+          64
+        ],
+        [
+          2,
+          2,
+          1,
+          9,
+          4,
+          7,
+          19,
+          5,
+          949,
+          2
+        ],
+        [
+          0,
+          0,
+          0,
+          2,
+          0,
+          15,
+          0,
+          45,
+          1,
+          937
+        ]
+      ],
+      "log_loss": 0.5301679881747511,
+      "macro_f1": 0.8048124060337505,
+      "sample_count": 10000
+    },
+    "sample_count": 10000,
+    "timing_scope": "Batched CPU forward calls; shared-host observation, not a benchmark"
+  },
+  "environment": {
+    "code_sha256": "dd74a334d6d165edf4c5f4e8eb0f4e287a09f866acb6deea4392d32156da193f",
+    "dependencies": "base=stdlib-only; optional recipe dependencies recorded in manifest",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "python": "3.12.14",
+    "supported_recipes": [
+      "logistic-regression/v1",
+      "softmax-digits/v1",
+      "fashion-cnn/v1"
+    ]
+  },
+  "dependencies": {
+    "numpy": "2.3.5",
+    "onnx": "1.20.1",
+    "onnxruntime": "1.23.2",
+    "onnxscript": "0.5.6",
+    "torch": "2.10.0+cpu"
+  },
+  "demo_environment": {
+    "python": "3.12.14",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "logical_cpu_count": 9,
+    "gpu_used": false
+  },
+  "timing": {
+    "training_seconds": 2.3422695890003524,
+    "submission_to_registration_observed_seconds": 8.025644520001151,
+    "inference_window_seconds": 1.8996024029984255,
+    "inference_requests": 10,
+    "batch_size": 10,
+    "http_latency_ms": {
+      "observations": [
+        10.098792999997386,
+        8.78435999948124,
+        12.841331999879912,
+        8.85195100090641,
+        11.823881999589503,
+        9.296226999140345,
+        8.53009299862606,
+        8.776807000685949,
+        10.044345999631332,
+        9.110294000493013
+      ],
+      "min": 8.53009299862606,
+      "median": 9.203260499816679,
+      "mean": 9.815808499843115,
+      "max": 12.841331999879912
+    },
+    "interpretation": "Shared local CPU observation, not a benchmark. HTTP timings include authentication, readiness probes, serialization and loopback transport."
+  },
+  "verification": {
+    "official_cache_hashes_verified": true,
+    "idempotent_submission": true,
+    "registered_artifact": true,
+    "full_test_export_parity": true,
+    "repeated_inference_requests": 10,
+    "stable_predictions": true,
+    "continuous_serving_pid": 41,
+    "stop_observed": "stopped",
+    "post_stop_http_status": 503
+  },
+  "limitations": "6000 stratified official training rows, not all 60000; all 10000 official test rows. Small grayscale clothing CNN only; no external audit, test tuning, production isolation, GPU, robots, drones or device validation.",
+  "real_trained_model_recovery": {
+    "actual_trained_model": "model_f5ef5822cf5347e39c7d1e910a528e4a",
+    "artifact_sha256": "c3d72d128db7f713c0370c43ca37843ff36c7fd3bc8d3da22538b4c613687c2d",
+    "api_crash_recovery_same_predictions": true,
+    "orphan_exited": true,
+    "stop_http503": true,
+    "isolated_copy_corruption_rejected": true,
+    "corrupt_deployment_error": "serving_exited"
+  },
+  "resources": {
+    "artifact_limit_bytes": 2097152,
+    "batch_size": 128,
+    "cpu_threads": 2,
+    "dataset_seconds": 0.42188045700095245,
+    "device": "cpu",
+    "evaluation_limit_seconds": 120,
+    "evaluation_seconds": 0.5807674970001244,
+    "export_limit_seconds": 120,
+    "export_seconds": 1.163380149000659,
+    "gpu_used": false,
+    "limits_scope": "Cooperative checks between native calls; no hard CPU/RSS/native-call timeout isolation",
+    "total_seconds": 5.000666522999381,
+    "training_loop_limit_seconds": 600
+  },
+  "architecture": {
+    "architecture": "Conv2d(1,8,3,padding=1),ReLU,MaxPool2d(2),Conv2d(8,16,3,padding=1),ReLU,MaxPool2d(2),Flatten,Linear(784,10)",
+    "exporter": "torch.onnx dynamo",
+    "external_data": false,
+    "input": {
+      "dtype": "float32",
+      "name": "pixels",
+      "preprocessing": "uint8 pixels / 255; no learned normalization",
+      "shape": [
+        "batch",
+        1,
+        28,
+        28
+      ]
+    },
+    "onnx_opset": 18,
+    "output": {
+      "dtype": "float32",
+      "name": "logits",
+      "shape": [
+        "batch",
+        10
+      ]
+    },
+    "parameters": 9098
+  }
+}

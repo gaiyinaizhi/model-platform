@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/Megvii-BaseDetection/YOLOX",
+  "commit": "6ddff4824372906469a7fae2dc3206c7aa4bbaee",
+  "license": "Apache-2.0",
+  "original_sha256": {
+    "network_blocks.py": "f490240a674799f1b548ac4ca571c7f3e59d4e75efee8ebeb1e24e6e4e10d2a4",
+    "darknet.py": "368c9db45166e863691cf7460b314d047928f90e8744c492a673b6eff9b809f3",
+    "yolo_pafpn.py": "8571af557f6caacda61e54813be4be2d73c4a0889e1f876ec5586057eb2eebde",
+    "yolo_head.py": "0275bcdeb1b1d5dbd3172fc4897c75cb161f707843983bf582fb087676f969c2",
+    "losses.py": "7fa685fb4653bab69d5880c3f749edeb8a4cabfe71fadf0acc5151c2eaa75702",
+    "yolox.py": "9f8eaf76d2c243627e875db9b522cf1cfddc0cdcf229400550f76102cce741e3",
+    "yolox/utils/boxes.py": "564fc1605b14ebe7414c42f7098adb70647e27f3d796df8dc4611795e78e3a86"
+  },
+  "modifications": [
+    "Only bboxes_iou extracted from utils/boxes.py; meshgrid uses torch.meshgrid indexing=ij",
+    "Removed CUDA OOM retry, CPU-to-CUDA returns, visualization and loguru",
+    "CPU float32 autocast disabled; core SimOTA and losses unchanged",
+    "Original model defaults are overridden by source-reviewed Nano single-class recipe"
+  ]
+}

@@ -1,0 +1,12 @@
+# Optional CPU detection stack, Linux x86_64 / Python 3.12.14.
+# Reuses the existing CPU torch / numpy / ONNX hash-locked stack.
+# pycocotools supplies actual COCOeval bbox AP; replacing it with handwritten AP
+# would need independent validation of matching, interpolation and edge cases.
+# Pillow decodes the controlled JPEG/PNG image inputs. Both additions are from
+# official PyPI with selected platform wheel hashes, not source builds.
+# Sources: https://pypi.org/project/pycocotools/2.0.11/
+#          https://pypi.org/project/pillow/12.3.0/
+# Install: .venv-fashion/bin/python -m pip install -r requirements-detection.lock
+-r requirements-fashion.lock
+pycocotools==2.0.11 --hash=sha256:a82d1c9ed83f75da0b3f244f2a3cf559351a283307bd9b79a4ee2b93ab3231dd
+-r requirements-datasets.lock

@@ -1,0 +1,114 @@
+name: CPU CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  stdlib:
+    name: Standard library / Python 3.12.14
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: .python-version
+          architecture: x64
+      - name: Create isolated standard-library environment
+        run: |
+          python -m venv .venv
+          .venv/bin/python - <<'PY'
+          import importlib.util
+          import sys
+          assert sys.version_info[:3] == (3, 12, 14), sys.version
+          for name in ("torch", "numpy", "onnx", "onnxruntime"):
+              assert importlib.util.find_spec(name) is None, f"unexpected optional dependency: {name}"
+          print(sys.version)
+          PY
+      - name: Compile all Python sources
+        run: .venv/bin/python -m compileall -q model_platform scripts tests
+      - name: Run all base regressions (optional dependency tests may skip)
+        run: .venv/bin/python -m unittest discover -s tests -v
+
+  optional-ml:
+    name: Optional ML / CPU ONNX
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version-file: .python-version
+          architecture: x64
+      - name: Install the hash-locked CPU stack
+        run: |
+          python -m venv .venv-fashion
+          .venv-fashion/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-detection.lock
+          .venv-fashion/bin/python -m pip check
+      - name: Verify optional dependencies and CPU runtime
+        run: |
+          .venv-fashion/bin/python - <<'PY'
+          import sys
+          import numpy
+          import onnx
+          import onnxruntime
+          import onnxscript
+          import torch
+          import PIL
+          import pycocotools.cocoeval
+          assert sys.version_info[:3] == (3, 12, 14), sys.version
+          assert torch.version.cuda is None, "CPU-only PyTorch is required"
+          assert "CPUExecutionProvider" in onnxruntime.get_available_providers()
+          for module in (numpy, onnx, onnxruntime, onnxscript, torch):
+              print(f"{module.__name__}=={module.__version__}")
+          PY
+      - name: Run offline optional regressions with one explicit real-cache exclusion
+        run: |
+          .venv-fashion/bin/python - <<'PY'
+          import unittest
+          discovered = unittest.defaultTestLoader.discover("tests")
+          excluded_id = "test_fashion_data.OptionalOfficialCacheTests.test_full_source_is_reverified_offline"
+          def flatten(suite):
+              for test in suite:
+                  if isinstance(test, unittest.TestSuite):
+                      yield from flatten(test)
+                  else:
+                      yield test
+          tests = list(flatten(discovered))
+          excluded = [test for test in tests if test.id() == excluded_id]
+          if len(excluded) != 1:
+              raise SystemExit("Expected exactly one explicitly named official-cache integration test")
+          print("Explicitly excluded real-cache integration: " + excluded_id)
+          suite = unittest.TestSuite(test for test in tests if test.id() != excluded_id)
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if not result.testsRun or result.skipped or not result.wasSuccessful():
+              raise SystemExit("Optional ML tests must run successfully with no skips")
+          PY
