@@ -29,6 +29,13 @@ def serve(runtime, deployment_id, fd, parent_pid):
     if any(model[key] != manifest[key] for key in ("recipe", "contract", "format", "dimensions")):
         raise ValueError("Model manifest contract mismatch")
 
+    if manifest.get('recipe') == 'yolox-nano-dataset/v1':
+        data = manifest['dataset']
+        expected = {key: data[key] for key in ('dataset_version_id', 'train_sha256', 'evaluation_sha256', 'evaluation_split')}
+        expected['dataset_sha256'] = data['sha256']
+        if model['class_names'] != manifest.get('class_names') or model['dataset_lineage'] != expected:
+            raise ValueError('Model class mapping or dataset lineage mismatch')
+
     class Handler(JsonHandler):
         def do_POST(self):
             try:

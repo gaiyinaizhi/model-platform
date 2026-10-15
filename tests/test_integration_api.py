@@ -30,8 +30,8 @@ class IntegrationHttpTests(unittest.TestCase):
         status, body = self.call('/recipes')
         self.assertEqual(status, 200)
         self.assertEqual(body, {'recipes': public_catalog()})
-        self.assertEqual(len(body['recipes']), 4)
-        det = body['recipes'][-1]
+        self.assertEqual(len(body['recipes']), 5)
+        det = next(item for item in body['recipes'] if item['id']=='yolox-nano-cat/v1')
         self.assertEqual(det['task_type'], 'object-detection')
         self.assertFalse(det['quality']['production_allowed'])
         self.assertEqual(det['quality']['status'], 'quality-failed')
@@ -44,7 +44,7 @@ class IntegrationHttpTests(unittest.TestCase):
         for token in self.tokens.values():
             self.assertNotIn(token, encoded)
         det['training']['fixed_config']['epochs'] = 999
-        self.assertEqual(public_catalog()[-1]['training']['fixed_config']['epochs'], 20)
+        self.assertEqual(next(item for item in public_catalog() if item['id']=='yolox-nano-cat/v1')['training']['fixed_config']['epochs'], 20)
         self.assertEqual(self.call('/recipes', {})[0], 404)
 
     def test_deploy_concurrent_replay_canonical_input_and_restart(self):

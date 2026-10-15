@@ -12,12 +12,13 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 
 ## 已实现
 
-- 新增[自定义 YOLO 数据集导入/版本](docs/dataset-imports.md)：受限 ZIP、逐文件图像/框/跨 split 校验、显式负样本策略、租户隔离、不可变复制快照；本切片不开放自定义训练
+- 新增[自定义 YOLO 数据集导入/版本](docs/dataset-imports.md)：受限 ZIP、逐文件图像/框/跨 split 校验、显式负样本策略、租户隔离、不可变复制快照；可通过[版本绑定多类别训练](docs/dataset-training.md)执行受控 CPU 配方
 
 - 标准库 HTTP API + SQLite WAL 事务队列；API 不执行训练，独立 Worker 顺序领取任务
 - 兼容配方 `logistic-regression/v1`，真实梯度训练、训练集拟合标准化参数、独立留出集实际计算 accuracy / log loss / confusion
 - 独立配方 `softmax-digits/v1`：64 个 0..16 整数特征、10 类，确定性 softmax SGD；官方 3823/1797 划分全量保留，accuracy / macro-F1 / 10×10 confusion / log loss
 - JSON数值模型及可选ONNX图像模型、SHA-256、数据快照摘要、代码/环境/配置血缘；评估与模型技术记录逻辑不可变
+- 新增`yolox-nano-dataset/v1`：绑定当前租户不可变 YOLO 版本、1..20类、最小超参数、独立 ONNX mAP/逐类别 AP 和受兼容性约束的实验比较；[契约与验收边界](docs/dataset-training.md)
 - 可选`yolox-nano-cat/v1`：官方 Apache-2.0 YOLOX-Nano 模型、Open Images Cat 128/32/32 独立划分、CPU 从零训练、真实框预测和 pycocotools mAP（test AP50=51.51%、AP50:95=17.21%；存在高置信极端原始框，质量不合格、禁止生产使用）；[契约/验收状态](docs/detection.md)
 - 可选`fashion-cnn/v1`：官方Fashion-MNIST固定分层6000训练/完整10000 test，小CNN从零训练、ONNX一致性验证与独立CPU持续服务，细节见[Fashion指南](docs/fashion.md)
 - 幂等提交、输入/大小/速率/队列预算、失败日志、最多 3 次执行尝试，重试保留失败历史
@@ -100,7 +101,7 @@ API / Worker 通过各自终端的 Ctrl+C 停止。API 正常退出会终结自�
 - 取消返回 501；没有检查点恢复、自动训练重试、版本热切流、自动回滚或质量发布门槛；更新版本需新部署 ID
 - serving 崩溃会撤销 ready，不在同一个 supervisor 生命周期自动重启；API 重启按 desired 状态重新验证启动
 - SQLite 单机运行，没有分布式队列、自动数据保留/清理、备份恢复验收或断电耐久性保证；未登记的孤儿产物不会被部署，也不会自动删除
-- 图像配方限定固定公开Fashion-MNIST灰度分类与Open Images Cat单类检测小切片；检测仅允许受限内联RGB预测，已支持独立受控 YOLO 数据集导入/版本，但尚无自定义图像训练、设备转换包、机器人/无人机适配、外部模型导入、厂商 endpoint 或 Sluggard 接口；后续能力见 [路线图](docs/roadmap.md)
+- 图像配方包括固定公开Fashion-MNIST灰度分类、Open Images Cat单类检测和有预算的 YOLO 数据集版本绑定多类别 CPU 检测；检测仅允许受限内联RGB预测；尚无设备转换包、机器人/无人机适配、外部模型导入、厂商 endpoint 或 Sluggard 接口；后续能力见 [路线图](docs/roadmap.md)
 
 ## 目录与贡献
 

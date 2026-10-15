@@ -90,10 +90,11 @@ def training_request(body):
     from .recipes import get_recipe
     spec = get_recipe(body.get("recipe", RECIPE))
     spec.validate_request(data, body["config"])
-    text_value(data["source"], "dataset source")
-    text_value(data["version"], "dataset version")
-    if data["rights_confirmed"] is not True:
-        raise Problem(400, "invalid_input", "Legal data usage confirmation required")
+    if spec.data_mode != "dataset-version":
+        text_value(data["source"], "dataset source")
+        text_value(data["version"], "dataset version")
+        if data["rights_confirmed"] is not True:
+            raise Problem(400, "invalid_input", "Legal data usage confirmation required")
     if "business_ref" in body:
         text_value(body["business_ref"], "business_ref")
     if len(encode(body)) > spec.budgets.request_bytes:

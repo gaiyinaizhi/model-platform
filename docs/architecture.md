@@ -82,3 +82,7 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 ## 自定义 YOLO 数据集版本增量
 
 2026-10-15：独立 staged import → ZIP validation report → explicit immutable version publication。技术对象仍由 model-platform 主写，tenant 来自 Bearer；没有新增训练配方、任意执行或网络下载。数据集专用 ZIP 路由采用独立32 MiB传输/128 MiB展开/像素预算，原 JSON 和 Cat 流程不变。完整契约、事务/恢复边界和限制见 [dataset-imports.md](dataset-imports.md)。
+
+## 数据集版本绑定训练增量
+
+2026-10-15：新增 `yolox-nano-dataset/v1`。提交事务写入不可变 run→版本关联，Worker 多阶段校验快照；多类别 ONNX模型与配置、代码、环境、评估、模型技术版本相连。val/test 明确区分，比较要求相同评估数据/类别/协议。固定 Cat 兼容；完整请求、预算、错误和服务契约见 [dataset-training.md](dataset-training.md)。

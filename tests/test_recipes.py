@@ -34,7 +34,7 @@ EXPECTED_BUDGETS = {
 
 class RegistryTests(unittest.TestCase):
     def test_exact_builtins_metadata_and_nested_immutability(self):
-        self.assertEqual(recipes.recipe_ids(), [RECIPE, digits.RECIPE, fashion.RECIPE, detection.RECIPE])
+        self.assertEqual(recipes.recipe_ids(), [RECIPE, digits.RECIPE, fashion.RECIPE, detection.RECIPE, "yolox-nano-dataset/v1"])
         expected_contracts = {RECIPE: (CONTRACT, "logistic-json/v1", 2, "inline"),
                               digits.RECIPE: (digits.CONTRACT, digits.FORMAT, 10, "inline"),
                               fashion.RECIPE: (fashion.CONTRACT, fashion.FORMAT, 10, "fixed-reference"),
@@ -72,7 +72,7 @@ class RegistryTests(unittest.TestCase):
             with self.subTest(duplicate=duplicate.id):
                 with self.assertRaises(ValueError):
                     recipes.build_registry((base, duplicate))
-        self.assertEqual(recipes.recipe_ids(), [RECIPE, digits.RECIPE, fashion.RECIPE, detection.RECIPE])
+        self.assertEqual(recipes.recipe_ids(), [RECIPE, digits.RECIPE, fashion.RECIPE, detection.RECIPE, "yolox-nano-dataset/v1"])
 
     def test_registry_rejects_malformed_source_registration(self):
         base = recipes.get_recipe(RECIPE)
@@ -123,7 +123,7 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(recipes.catalog(), original)
         ids = recipes.recipe_ids()
         ids.clear()
-        self.assertEqual(len(recipes.recipe_ids()), 4)
+        self.assertEqual(len(recipes.recipe_ids()), 5)
         script = """
 import builtins
 import json
@@ -189,11 +189,16 @@ assert 'model_platform.recipe_execution' not in sys.modules
                      fashion.RECIPE: fashion.request_body, detection.RECIPE: detection.request_body}
         for spec in recipes.REGISTRY.values():
             with self.subTest(recipe=spec.id):
-                if spec.id == detection.RECIPE:
+                if spec.id in (detection.RECIPE, 'yolox-nano-dataset/v1'):
                     spec.validate_features(detection.probe_input(), spec.budgets.max_dimensions)
                     with self.assertRaises(Problem):
                         spec.validate_features(detection.probe_input() * 2, spec.budgets.max_dimensions)
-                    body = detection.request_body()
+                    if spec.id == detection.RECIPE:
+                        body = detection.request_body()
+                    else:
+                        from model_platform.dataset_detection import request_body as dataset_request
+                        body = dataset_request('dsv_'+'0'*32)
+                        body['config']['epochs'] = spec.budgets.max_epochs
                     training_request(body)
                     body["config"]["epochs"] += 1
                     with self.assertRaises(Problem):

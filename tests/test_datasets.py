@@ -397,7 +397,7 @@ class DatasetHttpTests(StoreFixture):
         self.assertEqual(self.request('/dataset-versions/' + version['id'], token='b')[0], 404)
         self.assertEqual(len(self.request('/dataset-versions')[1]['versions']), 1)
         recipes = self.request('/recipes')[1]['recipes']
-        self.assertEqual(len(recipes), 4)
+        self.assertEqual(len(recipes), 5)
         cat = next(r for r in recipes if r['id'] == 'yolox-nano-cat/v1')
         self.assertFalse(cat['quality']['production_allowed'])
         self.assertNotIn(str(self.runtime.home), json.dumps(version))

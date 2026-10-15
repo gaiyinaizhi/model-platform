@@ -17,6 +17,14 @@ CREATE TABLE IF NOT EXISTS runs (
  created_at REAL NOT NULL, updated_at REAL NOT NULL, model_version_id TEXT,
  UNIQUE(tenant,idempotency_key)
 );
+CREATE TABLE IF NOT EXISTS run_dataset_bindings (
+ run_id TEXT PRIMARY KEY REFERENCES runs(id), dataset_version_id TEXT NOT NULL,
+ content_sha256 TEXT NOT NULL, binding_json TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS run_dataset_binding_update_immutable BEFORE UPDATE ON run_dataset_bindings
+BEGIN SELECT RAISE(ABORT,'run dataset bindings are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS run_dataset_binding_delete_immutable BEFORE DELETE ON run_dataset_bindings
+BEGIN SELECT RAISE(ABORT,'run dataset bindings are immutable'); END;
 CREATE TABLE IF NOT EXISTS attempts (
  id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id), number INTEGER NOT NULL,
  status TEXT NOT NULL CHECK(status IN ('running','succeeded','failed')),
@@ -84,6 +92,11 @@ class Store:
 
     def submit(self, tenant, key, body):
         request_hash = digest(body)
+        from . import dataset_detection
+        datasets = None
+        if body.get('recipe') == dataset_detection.RECIPE:
+            from .datasets import DatasetStore
+            datasets = DatasetStore(self.runtime)
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             old = db.execute("SELECT * FROM runs WHERE tenant=? AND idempotency_key=?", (tenant, key)).fetchone()
@@ -91,6 +104,7 @@ class Store:
                 if old["request_sha256"] != request_hash:
                     raise Problem(409, "idempotency_conflict", "Key already bound to different input")
                 return old["id"], False
+            binding = dataset_detection.bind_version(datasets, tenant, body['dataset']['dataset_version_id']) if datasets else None
             count = db.execute("SELECT count(*) FROM runs WHERE status IN ('queued','running')").fetchone()[0]
             if count >= MAX_ACTIVE_RUNS:
                 raise Problem(429, "run_capacity", "Active run budget reached")
@@ -99,6 +113,9 @@ class Store:
             db.execute("INSERT INTO runs VALUES(?,?,?,?,?,?,?,?,?,NULL)",
                        (run_id, tenant, key, request_hash, encode(body).decode(),
                         encode(environment()).decode(), "queued", stamp, stamp))
+            if binding:
+                db.execute("INSERT INTO run_dataset_bindings VALUES(?,?,?,?)",
+                           (run_id, binding['dataset_version_id'], binding['sha256'], encode(binding).decode()))
             self.audit(db, tenant, "submit", run_id)
             return run_id, True
 
@@ -108,11 +125,18 @@ class Store:
             body = json.loads(row["input_json"])
             result = {k: row[k] for k in ("id", "status", "created_at", "updated_at", "request_sha256", "model_version_id")}
             from .recipes import get_recipe
-            train_count, evaluation_count = get_recipe(body.get("recipe", RECIPE)).counts(body["dataset"])
+            from .dataset_detection import RECIPE as DATASET_RECIPE
+            binding = db.execute("SELECT binding_json FROM run_dataset_bindings WHERE run_id=?", (run_id,)).fetchone()
+            if body.get('recipe') == DATASET_RECIPE:
+                if not binding:
+                    raise Problem(409, 'dataset_binding_missing', 'Run dataset binding is unavailable')
+                dataset = json.loads(binding['binding_json'])
+            else:
+                train_count, evaluation_count = get_recipe(body.get("recipe", RECIPE)).counts(body["dataset"])
+                dataset = {"source": body["dataset"]["source"], "version": body["dataset"]["version"],
+                           "sha256": digest(body["dataset"]), "train_count": train_count, "evaluation_count": evaluation_count}
             result.update(recipe=body.get("recipe", RECIPE), environment=json.loads(row["environment_json"]),
-                          dataset={"source": body["dataset"]["source"], "version": body["dataset"]["version"],
-                                   "sha256": digest(body["dataset"]), "train_count": train_count,
-                                   "evaluation_count": evaluation_count}, config=body["config"],
+                          dataset=dataset, config=body["config"],
                           business_ref=body.get("business_ref"), attempts=[])
             for attempt in db.execute("SELECT * FROM attempts WHERE run_id=? ORDER BY number", (run_id,)):
                 item = dict(attempt)
@@ -122,6 +146,48 @@ class Store:
                     log["details"] = json.loads(log["details"])
                 result["attempts"].append(item)
             return result
+
+    def dataset_binding(self, run, verify=True):
+        from .dataset_detection import RECIPE as DATASET_RECIPE, bind_version
+        body = json.loads(run['input_json'])
+        if body.get('recipe') != DATASET_RECIPE:
+            return None
+        with self.runtime.connection() as db:
+            # Read the tenant from the actual persisted run, never a request field.
+            owned = self._owned(db, 'runs', run['tenant'], run['id'])
+            row = db.execute("SELECT * FROM run_dataset_bindings WHERE run_id=?", (owned['id'],)).fetchone()
+        if not row or row['dataset_version_id'] != body['dataset']['dataset_version_id']:
+            raise Problem(409, 'dataset_binding_missing', 'Run dataset binding is unavailable')
+        binding = json.loads(row['binding_json'])
+        if binding['sha256'] != row['content_sha256']:
+            raise Problem(409, 'dataset_integrity', 'Run dataset binding has changed')
+        if verify:
+            from .datasets import DatasetStore
+            current = bind_version(DatasetStore(self.runtime), owned['tenant'], row['dataset_version_id'])
+            if current != binding:
+                raise Problem(409, 'dataset_integrity', 'Bound dataset content has changed')
+        return binding
+
+    def compare_models(self, tenant, model_ids):
+        from .dataset_detection import RECIPE as DATASET_RECIPE, compatibility
+        if (not isinstance(model_ids, list) or len(model_ids) != 2 or
+                any(not isinstance(x, str) for x in model_ids) or model_ids[0] == model_ids[1]):
+            raise Problem(400, 'invalid_input', 'Choose two distinct model version IDs')
+        models = [self.model(tenant, item) for item in model_ids]
+        if any(model['recipe'] != DATASET_RECIPE for model in models):
+            raise Problem(409, 'evaluation_incompatible', 'Cannot compare evaluations: protocol')
+        evaluations = [model['evaluation'] for model in models]
+        signatures = [compatibility(e) for e in evaluations]
+        differences = [key for key in ('dataset', 'classes', 'protocol', 'split') if signatures[0][key] != signatures[1][key]]
+        if differences:
+            raise Problem(409, 'evaluation_incompatible', 'Cannot compare evaluations: ' + ', '.join(differences))
+        metrics = [dict(model_version_id=mid, **{k: e[k] for k in ('map_50', 'map_50_95', 'per_class')})
+                   for mid, e in zip(model_ids, evaluations)]
+        deltas = {key: (evaluations[1][key] - evaluations[0][key]
+                       if all(type(e[key]) in (int, float) for e in evaluations) else None)
+                  for key in ('map_50', 'map_50_95')}
+        return {'compatible': True, 'compatibility_key': digest(signatures[0]),
+                'model_version_ids': model_ids, 'metrics': metrics, 'deltas': deltas}
 
     @staticmethod
     def _owned(db, table, tenant, object_id):
@@ -219,6 +285,25 @@ class Store:
         self.log(attempt_id, "failed", {"code": code})
 
     def register(self, run, attempt_id, artifact_hash, evaluation, manifest):
+        binding = self.dataset_binding(run)
+        if binding is not None:
+            from .dataset_detection import compatibility, FIXED_CONFIG
+            body = json.loads(run['input_json'])
+            class_map = [{'category_id': c['id'], 'coco_category_id': c['id']+1, 'name': c['name']} for c in binding['classes']]
+            training_config = dict(body['config'], **FIXED_CONFIG)
+            if (manifest.get('dataset') != binding or evaluation.get('dataset_version_id') != binding['dataset_version_id']
+                    or evaluation.get('artifact_sha256') != artifact_hash
+                    or evaluation.get('dataset_sha256') != binding['evaluation_sha256']
+                    or evaluation.get('evaluation_sha256') != binding['evaluation_sha256']
+                    or evaluation.get('dataset_content_sha256') != binding['sha256']
+                    or evaluation.get('split') != binding['evaluation_split']
+                    or evaluation.get('role') != ('held-out-test' if binding['evaluation_split']=='test' else 'validation-only')
+                    or evaluation.get('category_mapping') != class_map
+                    or evaluation.get('compatibility_key') != digest(compatibility(evaluation))
+                    or manifest.get('config') != body['config'] or manifest.get('training_config') != training_config
+                    or manifest.get('config_sha256') != digest(training_config)
+                    or manifest.get('class_names') != binding['class_names']):
+                raise Problem(409, 'dataset_integrity', 'Model evaluation dataset linkage mismatch')
         model_id, eval_id = identifier("model"), identifier("eval")
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")

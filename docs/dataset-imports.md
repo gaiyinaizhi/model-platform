@@ -141,3 +141,7 @@ SQLite 触发器阻止修改/删除已发布版本和覆盖已保存校验报告
 ```
 
 测试使用自生成无敏感 PNG/ZIP、真实 loopback HTTP、SQLite 和临时文件，覆盖合法样本/分类统计、错误路径/图像/标注/YAML/ZIP、CRC/DEFLATE 异常、跨 split 原字节/像素泄漏、负样本、预算、权限/重放、复制隔离、DB 不可变、并发发布、存储/事务失败及旧 Cat 配方目录保持不变。不代表真实业务数据质量、实际自定义训练或设备验收。最终实测汇总见 dataset-verification.json；未安装 ML 依赖的可选测试会跳过，不能称为全 ML 回归通过。
+
+## 后续训练增量
+
+版本发布后可选择新的受控 `yolox-nano-dataset/v1`。训练预算小于导入预算，不能将导入成功理解为任意规模可训练。版本关联、类别、val/test、mAP和可比性契约见 [dataset-training.md](dataset-training.md)。

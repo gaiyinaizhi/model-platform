@@ -1,0 +1,353 @@
+{
+  "date": "2026-10-15",
+  "scope": "Own synthetic red_square/blue_square fixtures; real CPU train/export/independent ONNX evaluation; mechanics only, not business quality proof",
+  "published_base": "c36dcad39bf915d04f37f2a9871e6ffe1904e62f",
+  "base_blobs_verified": 83,
+  "execution_code_sha256": "826e94013424cf7754831a3c3e7786e310fe9bf7d5581b4fe9b2236fa8852e52",
+  "python": "3.12.14",
+  "checks": {
+    "compileall": "passed",
+    "full_ml_unittest": {
+      "run": 225,
+      "passed": 224,
+      "skipped": 1,
+      "skip_reason": "Official Fashion-MNIST cache absent"
+    },
+    "stdlib_unittest": {
+      "run": 225,
+      "passed": 151,
+      "skipped": 74,
+      "skip_reason": "Optional dependencies intentionally absent"
+    },
+    "hash_locked_dependencies": {
+      "wheels": 24,
+      "all_original_lock_hashes_verified": true,
+      "pip_check": "passed"
+    },
+    "git_diff_check": "passed",
+    "reviewer_dynamic_onnx": {
+      "result": "C=3 actual ONNX Runtime class2 prediction; class map/tensor mismatch and invalid bound readiness rejected",
+      "scope": "Synthetic graph only; not training-quality evidence"
+    }
+  },
+  "actual_training": {
+    "status": "3 runs succeeded; independently read-only verified",
+    "scope": "Own synthetic images only; actual CPU training and ONNX evaluation; not detection quality proof",
+    "runs": [
+      {
+        "run_id": "run_81421f57ddf346cc93b504030af22249",
+        "model_version_id": "model_ea5813ff1238474f895a60f85dde3116",
+        "attempt_id": "attempt_bc2f7f1912f946fa95fa18374827e228",
+        "evaluation_id": "eval_2c0483a88b094f78b00bbc934c31c47d",
+        "dataset_version_id": "dsv_883b70f71aab48b2af1f544953c5b88a",
+        "dataset_sha256": "e91e8c22a16b5f30bcf7ecef49ab26050770e1fe4bcd6e7cd030da7a135bfb70",
+        "artifact_sha256": "c0969c2583bd6413b5cf9645c8c41dfd151db556d11078235b7453764d754299",
+        "artifact_bytes": 3664527,
+        "config": {
+          "epochs": 1,
+          "learning_rate": 0.001,
+          "seed": 20261015
+        },
+        "training_config": {
+          "batch_size": 4,
+          "checkpoint_selection": "final-epoch",
+          "epochs": 1,
+          "from_scratch": true,
+          "input_size": 160,
+          "learning_rate": 0.001,
+          "optimizer": "Adam",
+          "seed": 20261015
+        },
+        "code_sha256": "826e94013424cf7754831a3c3e7786e310fe9bf7d5581b4fe9b2236fa8852e52",
+        "parameter_count": 896949,
+        "parameters_changed": true,
+        "training_loss_history": [
+          12.697327136993408
+        ],
+        "dependencies": {
+          "Pillow": "12.3.0",
+          "PyYAML": "6.0.3",
+          "numpy": "2.3.5",
+          "onnx": "1.20.1",
+          "onnxruntime": "1.23.2",
+          "pycocotools": "2.0.11",
+          "torch": "2.10.0+cpu"
+        },
+        "evaluation": {
+          "split": "test",
+          "role": "held-out-test",
+          "status": "evaluated",
+          "map_50": 0.0,
+          "map_50_95": 0.0,
+          "per_class": [
+            {
+              "ap_50": 0.0,
+              "ap_50_95": 0.0,
+              "category_id": 0,
+              "ground_truth_boxes": 2,
+              "name": "red_square",
+              "predictions": 0,
+              "status": "evaluated"
+            },
+            {
+              "ap_50": 0.0,
+              "ap_50_95": 0.0,
+              "category_id": 1,
+              "ground_truth_boxes": 2,
+              "name": "blue_square",
+              "predictions": 0,
+              "status": "evaluated"
+            }
+          ],
+          "compatibility_key": "24081bb138d3c8c8d5f4006b80c4e359f5c489d36d8a24d9b7d4e78e22faef2f",
+          "parity": {
+            "box_atol_pixels": 0.1,
+            "box_matching": "deterministic-one-to-one-perfect-bipartite/v1",
+            "map_atol": 1e-06,
+            "matching_detection_counts": 2,
+            "max_absolute_box_error_pixels": 0.0,
+            "max_absolute_raw_error": 3.814697265625e-06,
+            "max_absolute_score_error": 0.0,
+            "raw_atol": 0.001,
+            "raw_rtol": 0.0001,
+            "sample_count": 2,
+            "score_atol": 0.0001,
+            "serving_score_threshold": 0.01,
+            "serving_threshold_parity_samples": 2
+          }
+        }
+      },
+      {
+        "run_id": "run_316a001add49469aa6cf284a69b51abb",
+        "model_version_id": "model_e54989fb4db2428db8c541eefb9a2276",
+        "attempt_id": "attempt_eb5306fb7042480db352d9962b31ed0a",
+        "evaluation_id": "eval_4c6e202bae144decad3582121278c58f",
+        "dataset_version_id": "dsv_883b70f71aab48b2af1f544953c5b88a",
+        "dataset_sha256": "e91e8c22a16b5f30bcf7ecef49ab26050770e1fe4bcd6e7cd030da7a135bfb70",
+        "artifact_sha256": "30ecb5baffc9756335fc1446825fc4be6159a452af06d549a05b95c02e6bc20c",
+        "artifact_bytes": 3664527,
+        "config": {
+          "epochs": 2,
+          "learning_rate": 0.001,
+          "seed": 20261015
+        },
+        "training_config": {
+          "batch_size": 4,
+          "checkpoint_selection": "final-epoch",
+          "epochs": 2,
+          "from_scratch": true,
+          "input_size": 160,
+          "learning_rate": 0.001,
+          "optimizer": "Adam",
+          "seed": 20261015
+        },
+        "code_sha256": "826e94013424cf7754831a3c3e7786e310fe9bf7d5581b4fe9b2236fa8852e52",
+        "parameter_count": 896949,
+        "parameters_changed": true,
+        "training_loss_history": [
+          12.697327136993408,
+          12.622547149658203
+        ],
+        "dependencies": {
+          "Pillow": "12.3.0",
+          "PyYAML": "6.0.3",
+          "numpy": "2.3.5",
+          "onnx": "1.20.1",
+          "onnxruntime": "1.23.2",
+          "pycocotools": "2.0.11",
+          "torch": "2.10.0+cpu"
+        },
+        "evaluation": {
+          "split": "test",
+          "role": "held-out-test",
+          "status": "evaluated",
+          "map_50": 0.0,
+          "map_50_95": 0.0,
+          "per_class": [
+            {
+              "ap_50": 0.0,
+              "ap_50_95": 0.0,
+              "category_id": 0,
+              "ground_truth_boxes": 2,
+              "name": "red_square",
+              "predictions": 0,
+              "status": "evaluated"
+            },
+            {
+              "ap_50": 0.0,
+              "ap_50_95": 0.0,
+              "category_id": 1,
+              "ground_truth_boxes": 2,
+              "name": "blue_square",
+              "predictions": 0,
+              "status": "evaluated"
+            }
+          ],
+          "compatibility_key": "24081bb138d3c8c8d5f4006b80c4e359f5c489d36d8a24d9b7d4e78e22faef2f",
+          "parity": {
+            "box_atol_pixels": 0.1,
+            "box_matching": "deterministic-one-to-one-perfect-bipartite/v1",
+            "map_atol": 1e-06,
+            "matching_detection_counts": 2,
+            "max_absolute_box_error_pixels": 0.0,
+            "max_absolute_raw_error": 7.62939453125e-06,
+            "max_absolute_score_error": 0.0,
+            "raw_atol": 0.001,
+            "raw_rtol": 0.0001,
+            "sample_count": 2,
+            "score_atol": 0.0001,
+            "serving_score_threshold": 0.01,
+            "serving_threshold_parity_samples": 2
+          }
+        }
+      },
+      {
+        "run_id": "run_00961379e8dc4458a06f21266a87fb13",
+        "model_version_id": "model_76a313fbc77c4095bf98df71f18b528b",
+        "attempt_id": "attempt_9ed3cb061ae04a4e9cdf7a28a2216a36",
+        "evaluation_id": "eval_4da4fabb50fb467199f051dd8a74fece",
+        "dataset_version_id": "dsv_5eb30e836e7945718d053dafa7b902fa",
+        "dataset_sha256": "3fe9deba051663bb29aac699a2febee66d115472812b789f66373b604570b8fd",
+        "artifact_sha256": "a47644c82d165683d119c4e07b76b6360d26ba4750fc352cd70efd7e63df2abf",
+        "artifact_bytes": 3664526,
+        "config": {
+          "epochs": 20,
+          "learning_rate": 0.001,
+          "seed": 20261015
+        },
+        "training_config": {
+          "batch_size": 4,
+          "checkpoint_selection": "final-epoch",
+          "epochs": 20,
+          "from_scratch": true,
+          "input_size": 160,
+          "learning_rate": 0.001,
+          "optimizer": "Adam",
+          "seed": 20261015
+        },
+        "code_sha256": "826e94013424cf7754831a3c3e7786e310fe9bf7d5581b4fe9b2236fa8852e52",
+        "parameter_count": 896949,
+        "parameters_changed": true,
+        "training_loss_history": [
+          12.513935565948486,
+          12.779820442199707,
+          12.12367057800293,
+          11.760804176330566,
+          11.46419620513916,
+          11.513243198394775,
+          11.154004096984863,
+          11.097004890441895,
+          10.805198669433594,
+          10.52272081375122,
+          10.413581848144531,
+          10.176999568939209,
+          9.788665294647217,
+          9.828795909881592,
+          9.611490249633789,
+          9.356264591217041,
+          9.238933563232422,
+          8.91898250579834,
+          8.461214065551758,
+          8.393091201782227
+        ],
+        "dependencies": {
+          "Pillow": "12.3.0",
+          "PyYAML": "6.0.3",
+          "numpy": "2.3.5",
+          "onnx": "1.20.1",
+          "onnxruntime": "1.23.2",
+          "pycocotools": "2.0.11",
+          "torch": "2.10.0+cpu"
+        },
+        "evaluation": {
+          "split": "val",
+          "role": "validation-only",
+          "status": "evaluated",
+          "map_50": 0.0,
+          "map_50_95": 0.0,
+          "per_class": [
+            {
+              "ap_50": 0.0,
+              "ap_50_95": 0.0,
+              "category_id": 0,
+              "ground_truth_boxes": 2,
+              "name": "red_square",
+              "predictions": 0,
+              "status": "evaluated"
+            },
+            {
+              "ap_50": null,
+              "ap_50_95": null,
+              "category_id": 1,
+              "ground_truth_boxes": 0,
+              "name": "blue_square",
+              "predictions": 0,
+              "status": "no_ground_truth"
+            }
+          ],
+          "compatibility_key": "cd7daacb0b2a893fb60b12b22522665401af42aa663c662bb8295ce605fe95df",
+          "parity": {
+            "box_atol_pixels": 0.1,
+            "box_matching": "deterministic-one-to-one-perfect-bipartite/v1",
+            "map_atol": 1e-06,
+            "matching_detection_counts": 2,
+            "max_absolute_box_error_pixels": 0.0,
+            "max_absolute_raw_error": 7.62939453125e-06,
+            "max_absolute_score_error": 0.0,
+            "raw_atol": 0.001,
+            "raw_rtol": 0.0001,
+            "sample_count": 2,
+            "score_atol": 0.0001,
+            "serving_score_threshold": 0.01,
+            "serving_threshold_parity_samples": 2
+          }
+        }
+      }
+    ],
+    "all_snapshot_and_artifact_hashes_verified": true,
+    "compatible_first_two": true,
+    "third_role_incompatible": true,
+    "absent_class_metrics_null": true
+  },
+  "exact_artifact_inference": {
+    "verification": "actual CPU ONNX reload and prediction; no UI deployment or service claim; synthetic mechanics only",
+    "model_version_id": "model_ea5813ff1238474f895a60f85dde3116",
+    "run_id": "run_81421f57ddf346cc93b504030af22249",
+    "dataset_version_id": "dsv_883b70f71aab48b2af1f544953c5b88a",
+    "dataset_sha256": "e91e8c22a16b5f30bcf7ecef49ab26050770e1fe4bcd6e7cd030da7a135bfb70",
+    "artifact_sha256": "c0969c2583bd6413b5cf9645c8c41dfd151db556d11078235b7453764d754299",
+    "classes": [
+      "red_square",
+      "blue_square"
+    ],
+    "input_image": "images/test/0.png",
+    "input_image_sha256": "b8883343494d17c8a1c31cd45b4ae5e0366f7bfcf6363e6417589b0ce6df8372",
+    "raw_input_shape": [
+      1,
+      3,
+      160,
+      160
+    ],
+    "raw_output_shape": [
+      1,
+      525,
+      7
+    ],
+    "raw_all_finite": true,
+    "source_image_dimensions": [
+      64,
+      64
+    ],
+    "prediction_count": 0,
+    "predicted_class_ids": [],
+    "first_five_predictions": []
+  },
+  "limits": [
+    "All reported overall mAP values are zero; no detection-quality claim",
+    "Third run used 20 bounded epochs only to observe live progress, not metric-driven tuning",
+    "No custom persistent serving/deployment browser acceptance claimed",
+    "Frontend navigation fixes and final browser retest have separate evidence",
+    "No remote push, merge, workflow change, production deployment or user data"
+  ],
+  "production_allowed": false
+}

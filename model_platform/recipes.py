@@ -5,11 +5,12 @@ callbacks below are explicit local imports; no user-controlled import paths.
 Importing the catalog requires only the standard library.
 """
 from dataclasses import dataclass, asdict
+from copy import deepcopy
 import re
 from types import MappingProxyType
 from typing import Callable
 
-from . import algorithm, digits, fashion, detection
+from . import algorithm, digits, fashion, detection, dataset_detection
 from .common import CONTRACT, RECIPE, MAX_BODY, Problem, features, validate_binary_request
 
 
@@ -51,7 +52,9 @@ class RecipeSpec:
     def readiness_input(self, dimensions):
         return self.probe_input() if self.probe_input else [[0] * dimensions]
 
-    def validate_readiness(self, predictions):
+    def validate_readiness(self, predictions, manifest=None):
+        if self.id == dataset_detection.RECIPE and manifest is not None:
+            return detection.probe_output(predictions, len(manifest["class_names"]))
         if self.probe_output:
             return self.probe_output(predictions)
         if not isinstance(predictions, list) or len(predictions) != 1:
@@ -67,6 +70,8 @@ class RecipeSpec:
             raise ValueError("Invalid binary probe output")
 
     def counts(self, dataset):
+        if self.data_mode == "dataset-version":
+            return dataset["train_count"], dataset["evaluation_count"]
         if self.data_mode == "fixed-reference":
             return self.budgets.train_rows, self.budgets.evaluation_rows
         return len(dataset["train"]), len(dataset["evaluation"])
@@ -128,7 +133,7 @@ def build_registry(specs):
             raise ValueError("Duplicate recipe, format or contract")
         if not re.fullmatch(r"[a-z][a-z0-9-]*/v[1-9][0-9]*", spec.id):
             raise ValueError("Invalid versioned recipe ID")
-        if type(spec.classes) is not int or spec.data_mode not in ("inline", "fixed-reference") or spec.classes < 1:
+        if type(spec.classes) is not int or spec.data_mode not in ("inline", "fixed-reference", "dataset-version") or spec.classes < 1:
             raise ValueError("Invalid recipe metadata")
         if not isinstance(spec.budgets, Budgets) or any(
                 type(value) is not int or value <= 0
@@ -181,6 +186,12 @@ REGISTRY = build_registry((
                Budgets(MAX_BODY, 128, 32, None, 160 * 160 * 3, 20, 1, 600, detection.MAX_ARTIFACT, 120, 180),
                detection.validate_request, _detection, detection.load_model, detection.predict, detection.images,
                probe_input=detection.probe_input, probe_output=detection.probe_output),
+    RecipeSpec(dataset_detection.RECIPE, dataset_detection.CONTRACT, dataset_detection.FORMAT, 'onnxruntime-cpu/v1',
+               dataset_detection.MAX_CLASSES, 'dataset-version',
+               ('torch', 'numpy', 'onnx', 'onnxruntime', 'Pillow', 'pycocotools', 'PyYAML'),
+               Budgets(MAX_BODY, 128, 64, 256, 160*160*3, 20, 1, 600, detection.MAX_ARTIFACT, 120, 180),
+               dataset_detection.validate_request, dataset_detection.execute, dataset_detection.load_model,
+               detection.predict, detection.images, probe_input=detection.probe_input, probe_output=dataset_detection.probe_output),
 ))
 
 
@@ -214,17 +225,26 @@ def public_catalog():
     result = []
     for spec in REGISTRY.values():
         item = spec.describe()
-        is_detection = spec.id == detection.RECIPE
+        is_detection = spec.id in (detection.RECIPE, dataset_detection.RECIPE)
+        custom_detection = spec.id == dataset_detection.RECIPE
         item.update(task_type='object-detection' if is_detection else 'classification',
                     availability={'dependencies': 'unknown', 'data': 'unknown', 'worker': 'unknown'},
                     quality={'production_allowed': False,
-                             'status': 'quality-failed' if is_detection else 'development-only',
+                             'status': 'development-only' if custom_detection else 'quality-failed' if is_detection else 'development-only',
                              'warnings': ['high-confidence-extreme-raw-boxes', 'clipped-boxes-do-not-prove-quality']
-                             if is_detection else ['not-production-validated']})
-        fixed = detection if is_detection else fashion if spec.id == fashion.RECIPE else None
+                             if is_detection and not custom_detection else ['not-production-validated']})
+        fixed = detection if is_detection and not custom_detection else fashion if spec.id == fashion.RECIPE else None
         item['training'] = {'fixed_config': dict(fixed.CONFIG) if fixed else None,
                             'fixed_dataset': fixed.request_body()['dataset'] if fixed else None}
-        if fixed is None:
+        if custom_detection:
+            item['classes'] = None
+            item['class_count_range'] = {'minimum': 1, 'maximum': dataset_detection.MAX_CLASSES}
+            item['training'].update(fixed_config=dict(dataset_detection.FIXED_CONFIG),
+                                    config_schema=deepcopy(dataset_detection.CONFIG_SCHEMA),
+                                    default_config=dict(dataset_detection.DEFAULT_CONFIG),
+                                    dataset_schema=deepcopy(dataset_detection.DATASET_SCHEMA),
+                                    split_policy='Train only; final epoch; test if present, otherwise validation-only')
+        elif fixed is None:
             item['training']['config_schema'] = {
                 'type': 'object', 'additionalProperties': False,
                 'required': ['epochs', 'learning_rate'] + (['seed'] if spec.id == digits.RECIPE else []),
@@ -249,14 +269,14 @@ def public_catalog():
                           'detections': {'type': 'array', 'maxItems': 100, 'items': {
                               'type': 'object', 'additionalProperties': False,
                               'required': ['class_id', 'score', 'box'], 'properties': {
-                                  'class_id': {'type': 'integer', 'const': 0},
+                                  'class_id': ({'type': 'integer', 'minimum': 0, 'maximum': 19} if custom_detection else {'type': 'integer', 'const': 0}),
                                   'score': {'type': 'number', 'minimum': detection.SCORE_THRESHOLD, 'maximum': 1},
                                   'box': {'type': 'array', 'minItems': 4, 'maxItems': 4,
                                           'items': {'type': 'number', 'minimum': 0}}}}}}}
             semantics = {'pixels': 'RGB row-major HWC; length=width*height*3',
                          'resize': '160x160 top-left letterbox; reject zero resized side',
                          'box': 'original-xyxy-half-open; 0<=x1<x2<=width; 0<=y1<y2<=height',
-                         'classes': [{'id': 0, 'name': 'Cat'}], 'empty_detections_valid': True,
+                         'classes': 'bound model dataset.classes' if custom_detection else [{'id': 0, 'name': 'Cat'}], 'empty_detections_valid': True,
                          'score_threshold': detection.SCORE_THRESHOLD, 'nms_iou_threshold': detection.NMS_IOU_THRESHOLD}
         else:
             binary = spec.id == RECIPE

@@ -50,3 +50,5 @@ htmlcov/
 # Isolated optional dataset-validation environment
 .venv-datasets/
 .venv-stdlib/
+
+.venv-training/

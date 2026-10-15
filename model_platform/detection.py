@@ -47,7 +47,7 @@ def probe_input():
     return [{'width': INPUT_SIZE, 'height': INPUT_SIZE, 'pixels': [0] * (INPUT_SIZE * INPUT_SIZE * 3)}]
 
 
-def probe_output(predictions):
+def probe_output(predictions, num_classes=1):
     import math
     if not isinstance(predictions, list) or len(predictions) != 1:
         raise ValueError('Invalid detection probe batch')
@@ -63,7 +63,7 @@ def probe_output(predictions):
         if not isinstance(detection, dict) or set(detection) != {'class_id', 'box', 'score'}:
             raise ValueError('Invalid detection probe record')
         box, score = detection['box'], detection['score']
-        if (type(detection['class_id']) is not int or detection['class_id'] != 0
+        if (type(detection['class_id']) is not int or not 0 <= detection['class_id'] < num_classes
                 or not isinstance(box, list) or len(box) != 4
                 or not all(type(v) in (int, float) and 0 <= v <= INPUT_SIZE for v in box)
                 or type(score) not in (int, float) or not SCORE_THRESHOLD <= score <= 1
@@ -81,6 +81,14 @@ def metadata():
 
 
 def load_model(path, expected_hash):
+    def identity(props):
+        if props != metadata():
+            raise ValueError('Invalid detection metadata')
+        return {'recipe': RECIPE, 'contract': CONTRACT, 'format': FORMAT, 'class_names': list(CLASS_NAMES)}
+    return _load_model(path, expected_hash, identity)
+
+
+def _load_model(path, expected_hash, metadata_identity):
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, 'rb') as stream:
         info = os.fstat(stream.fileno())
@@ -93,8 +101,10 @@ def load_model(path, expected_hash):
     import onnxruntime as ort
     graph = onnx.load_model_from_string(content)
     props = {p.key: p.value for p in graph.metadata_props}
-    if props != metadata() or len(graph.metadata_props) != len(props):
+    if len(graph.metadata_props) != len(props):
         raise ValueError('Invalid detection metadata')
+    identity = metadata_identity(props)
+    num_classes = len(identity['class_names'])
     if graph.functions or graph.training_info or graph.graph.sparse_initializer or len(graph.graph.node) > 1500:
         raise ValueError('Unsupported detection graph')
     allowed = {'Conv', 'Sigmoid', 'Mul', 'Add', 'Concat', 'MaxPool', 'Resize', 'Slice', 'Constant',
@@ -121,10 +131,9 @@ def load_model(path, expected_hash):
     ins, outs = session.get_inputs(), session.get_outputs()
     if (len(ins) != 1 or len(outs) != 1 or ins[0].name != 'images' or outs[0].name != 'detections'
             or ins[0].type != 'tensor(float)' or outs[0].type != 'tensor(float)'
-            or ins[0].shape != [1, 3, INPUT_SIZE, INPUT_SIZE] or outs[0].shape != [1, 525, 6]):
+            or ins[0].shape != [1, 3, INPUT_SIZE, INPUT_SIZE] or outs[0].shape != [1, 525, 5 + num_classes]):
         raise ValueError('Invalid detection tensor contract')
-    return {'recipe': RECIPE, 'contract': CONTRACT, 'format': FORMAT,
-            'dimensions': INPUT_SIZE * INPUT_SIZE * 3, 'session': session}
+    return dict(identity, dimensions=INPUT_SIZE * INPUT_SIZE * 3, session=session)
 
 
 def preprocess(image):
@@ -144,14 +153,15 @@ def predict(model, xs):
     import numpy as np
     from PIL import Image
     from .detection_geometry import postprocess_predictions
+    num_classes = len(model.get('class_names', CLASS_NAMES))
     results = []
     for item in xs:
         image = Image.fromarray(np.asarray(item['pixels'], dtype=np.uint8).reshape(item['height'], item['width'], 3))
         batch, transform = preprocess(image)
         raw = model['session'].run(['detections'], {'images': batch[None]})[0]
-        if raw.shape != (1, 525, 6) or not np.isfinite(raw).all():
+        if raw.shape != (1, 525, 5 + num_classes) or not np.isfinite(raw).all():
             raise ValueError('Invalid detection outputs')
-        detections = postprocess_predictions(raw[0].tolist(), transform, num_classes=1,
+        detections = postprocess_predictions(raw[0].tolist(), transform, num_classes=num_classes,
                     score_threshold=SCORE_THRESHOLD, iou_threshold=NMS_IOU_THRESHOLD, max_detections=100)
         results.append({'width': item['width'], 'height': item['height'], 'detections': detections})
     return results

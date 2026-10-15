@@ -9,12 +9,12 @@ from .common import digest
 from . import detection
 
 
-def build_model():
+def build_model(num_classes=1):
     import torch
     from .yolox_nano.yolox import YOLOX
     from .yolox_nano.yolo_pafpn import YOLOPAFPN
     from .yolox_nano.yolo_head import YOLOXHead
-    model = YOLOX(YOLOPAFPN(.33, .25, depthwise=True), YOLOXHead(1, .25, depthwise=True)).cpu()
+    model = YOLOX(YOLOPAFPN(.33, .25, depthwise=True), YOLOXHead(num_classes, .25, depthwise=True)).cpu()
     for module in model.modules():
         if isinstance(module, torch.nn.BatchNorm2d):
             module.eps = 1e-3
@@ -78,11 +78,13 @@ def _box_parity(reference, actual):
     return max_box_error, max_score_error
 
 
-def _evaluate(model, session, items, started, limit):
+def _evaluate(model, session, items, started, limit, categories=None):
     import numpy as np
     import torch
     from .detection_geometry import postprocess_predictions
     from .detection_evaluation import evaluate_detections
+    categories = categories if categories is not None else [{'id': 0, 'name': 'Cat'}]
+    num_classes = len(categories)
     images, annotations, predictions, reference_predictions = [], [], [], []
     max_raw_error, max_box_error, max_score_error = 0., 0., 0.
     exact_detection_counts = 0
@@ -92,18 +94,18 @@ def _evaluate(model, session, items, started, limit):
         record, image = item['record'], item['image']
         image_id = record['image_id']
         images.append({'id': image_id, 'width': image.width, 'height': image.height})
-        annotations.extend({'image_id': image_id, 'category_id': 0, 'bbox': box['xyxy']} for box in record['boxes'])
+        annotations.extend({'image_id': image_id, 'category_id': box.get('class_id', 0), 'bbox': box['xyxy']} for box in record['boxes'])
         array, transform = detection.preprocess(image)
         with torch.inference_mode():
             expected = model(torch.from_numpy(array[None])).numpy()
         actual = session.run(['detections'], {'images': array[None]})[0]
-        if expected.shape != (1, 525, 6) or actual.shape != expected.shape or not np.isfinite(actual).all():
+        if expected.shape != (1, 525, 5 + num_classes) or actual.shape != expected.shape or not np.isfinite(actual).all():
             raise TrainingFailure('detection_outputs_invalid')
         raw_error = float(np.max(np.abs(expected.astype(np.float64) - actual.astype(np.float64))))
         max_raw_error = max(max_raw_error, raw_error)
         if not np.allclose(expected, actual, rtol=1e-4, atol=1e-3):
             raise TrainingFailure('detection_onnx_raw_parity_failed')
-        opts = dict(num_classes=1, score_threshold=detection.EVALUATION_SCORE_THRESHOLD,
+        opts = dict(num_classes=num_classes, score_threshold=detection.EVALUATION_SCORE_THRESHOLD,
                     iou_threshold=detection.NMS_IOU_THRESHOLD, max_detections=100)
         torch_boxes = postprocess_predictions(expected[0].tolist(), transform, **opts)
         onnx_boxes = postprocess_predictions(actual[0].tolist(), transform, **opts)
@@ -117,12 +119,16 @@ def _evaluate(model, session, items, started, limit):
         serving_parity_count += 1
         for boxes, target in ((onnx_boxes, predictions), (torch_boxes, reference_predictions)):
             target.extend({'image_id': image_id, 'category_id': box['class_id'], 'bbox': box['box'], 'score': box['score']} for box in boxes)
-    categories = [{'id': 0, 'name': 'Cat'}]
     actual_metrics = evaluate_detections(images, annotations, predictions, categories)
     expected_metrics = evaluate_detections(images, annotations, reference_predictions, categories)
     for key in ('map_50', 'map_50_95'):
-        if actual_metrics[key] is None or abs(actual_metrics[key] - expected_metrics[key]) > 1e-6:
+        if (actual_metrics[key] is None) != (expected_metrics[key] is None) or (actual_metrics[key] is not None and abs(actual_metrics[key] - expected_metrics[key]) > 1e-6):
             raise TrainingFailure('detection_onnx_map_parity_failed')
+    for actual_class, expected_class in zip(actual_metrics['per_class'], expected_metrics['per_class']):
+        for key in ('ap_50', 'ap_50_95'):
+            a, e = actual_class[key], expected_class[key]
+            if (a is None) != (e is None) or (a is not None and abs(a-e) > 1e-6):
+                raise TrainingFailure('detection_onnx_per_class_parity_failed')
     _deadline(started, limit, 'detection_evaluation_timeout')
     return {'onnx': actual_metrics, 'pytorch': expected_metrics, 'parity': {
         'sample_count': len(items), 'matching_detection_counts': exact_detection_counts,

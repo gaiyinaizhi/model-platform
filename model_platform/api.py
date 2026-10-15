@@ -121,6 +121,10 @@ def make_handler(store, supervisor, auth):
             return raw
 
         def route(self, method, parts, tenant):
+            if parts == ["model-comparisons"] and method == "POST":
+                body = self.body()
+                object_fields(body, ('model_version_ids',))
+                return 200, store.compare_models(tenant, body['model_version_ids'])
             if parts == ["dataset-imports"] and method == "POST":
                 keys = self.headers.get_all("Idempotency-Key", [])
                 if len(keys) != 1:

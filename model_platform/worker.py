@@ -3,7 +3,7 @@ import json
 import time
 
 from .algorithm import TrainingFailure
-from .common import RECIPE, environment, training_request
+from .common import RECIPE, Problem, environment, training_request
 from .store import Store
 
 # Match provenance to this process's loaded code, not a later on-disk edit.
@@ -22,6 +22,9 @@ def execute(store, run, attempt_id):
         verify_execution_code(run)
         from .recipes import get_recipe
         spec = get_recipe(body.get("recipe", RECIPE))
+        binding = store.dataset_binding(run)
+        if binding is not None:
+            body = dict(body, _dataset_binding=binding, _dataset_tenant=run['tenant'])
         store.log(attempt_id, "started", {"recipe": spec.id})
         artifact_hash, evaluation, manifest = spec.execute(
             spec, store.runtime, body, store.runtime.artifact(attempt_id),
@@ -29,6 +32,8 @@ def execute(store, run, attempt_id):
             EXECUTION_ENVIRONMENT, json.loads(run["environment_json"]))
         verify_execution_code(run)
         store.register(run, attempt_id, artifact_hash, evaluation, manifest)
+    except Problem as exc:
+        store.fail(run['id'], attempt_id, exc.code)
     except TrainingFailure as exc:
         store.fail(run["id"], attempt_id, exc.code)
     except Exception:

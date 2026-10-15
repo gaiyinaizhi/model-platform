@@ -82,7 +82,7 @@ class Supervisor:
             from .recipes import for_manifest
             spec = for_manifest(instance.manifest)
             result = self.call(instance, spec.readiness_input(instance.manifest["dimensions"]))
-            spec.validate_readiness(result["predictions"])
+            spec.validate_readiness(result["predictions"], instance.manifest)
             self.store.observe(deployment_id, "ready", pid=instance.process.pid)
             return True
         except Exception:
