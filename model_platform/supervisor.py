@@ -50,10 +50,9 @@ class Supervisor:
                 result.get("artifact_sha256") != instance.manifest["artifact_sha256"] or
                 result.get("contract") != instance.manifest["contract"]):
             raise ValueError("Serving version mismatch")
-        if instance.manifest.get("recipe") == "yolox-nano-dataset/v1":
-            from .dataset_serving import public_identity
-            if any(result.get(key) != value for key, value in public_identity(instance.manifest).items()):
-                raise ValueError("Serving dataset identity mismatch")
+        from .runtime_dispatch import public_identity
+        if any(result.get(key) != value for key, value in public_identity(instance.manifest).items()):
+            raise ValueError("Serving model identity mismatch")
         return result
 
     def _spawn(self, row):
@@ -66,6 +65,8 @@ class Supervisor:
             capability = secrets.token_hex(32)
             env = os.environ.copy()
             env["MP_HOME"] = str(self.store.runtime.home)
+            if manifest.get('origin') == 'imported':
+                env.update(OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
             # Child exception output is suppressed; public errors are stable sanitized codes.
             process = subprocess.Popen([sys.executable, "-m", "model_platform", "serve", "--deployment", row["id"],
                                         "--fd", str(sock.fileno()), "--parent", str(os.getpid())],
@@ -85,7 +86,7 @@ class Supervisor:
             self.store.observe(deployment_id, "failed", "serving_exited")
             return False
         try:
-            from .recipes import for_manifest
+            from .runtime_dispatch import for_manifest
             spec = for_manifest(instance.manifest)
             result = self.call(instance, spec.readiness_input(instance.manifest["dimensions"]))
             spec.validate_readiness(result["predictions"], instance.manifest)
@@ -143,7 +144,7 @@ class Supervisor:
             instance = self.instances.get(deployment_id)
             if row["desired"] != "running" or not instance or not self._probe(deployment_id, instance):
                 raise Problem(503, "not_ready", "Deployment is not actually ready")
-            from .recipes import for_manifest
+            from .runtime_dispatch import for_manifest
             for_manifest(instance.manifest).validate_features(xs, instance.manifest["dimensions"])
             try:
                 return self.call(instance, xs)

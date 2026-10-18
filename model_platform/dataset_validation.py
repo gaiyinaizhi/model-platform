@@ -9,7 +9,7 @@ import zipfile
 import zlib
 from pathlib import PurePosixPath
 
-from .common import Problem, digest
+from .common import Problem, digest, encode, object_fields, text_value
 
 MAX_ARCHIVE_BYTES = 32 * 1024 * 1024
 MAX_UNPACKED_BYTES = 128 * 1024 * 1024
@@ -22,6 +22,9 @@ MAX_ISSUES = 200
 MAX_BOXES = 100_000
 SPLITS = ("train", "val", "test")
 FORMAT = "yolo-detection/v1"
+MAX_SOURCE_BYTES = 128 * 1024
+MAX_SOURCE_IMAGES = 64
+MAX_SOURCE_ANNOTATIONS = 10_000
 
 
 def dependencies():
@@ -50,13 +53,146 @@ def safe_path(name):
     return True
 
 
+def validate_source(source):
+    """Validate a declaration only; never fetch or certify the declared source.
+
+    This v1 source schema is deliberately the exact reviewed COCO subset format.
+    Its source IDs are not pycocotools' temporary contiguous category IDs.
+    """
+    object_fields(source, ("name", "version", "annotation_sha256", "selection_sha256",
+                           "selection_policy", "manifest"))
+
+    def string(value, name, maximum):
+        text_value(value, name, maximum)
+        if value != value.strip() or not value.strip() or any(ord(c) == 127 for c in value):
+            raise Problem(400, "invalid_input", "Invalid dataset source text")
+
+    def integer(value):
+        if type(value) is not int or not 0 <= value <= 2**53 - 1:
+            raise Problem(400, "invalid_input", "Source IDs and counts must be nonnegative JSON-safe integers")
+
+    def hash_value(value):
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+            raise Problem(400, "invalid_input", "Source digests must be lowercase SHA-256 hex")
+
+    for key, maximum in (("name", 80), ("version", 80), ("selection_policy", 160)):
+        string(source[key], key, maximum)
+    for key in ("annotation_sha256", "selection_sha256"):
+        hash_value(source[key])
+    manifest = source["manifest"]
+    object_fields(manifest, ("schema", "source", "selection", "categories", "licenses", "images"))
+    try:
+        if len(encode(manifest)) > MAX_SOURCE_BYTES or digest(manifest) != source["selection_sha256"]:
+            raise ValueError("Source manifest size or digest mismatch")
+    except (ValueError, TypeError, RecursionError):
+        raise Problem(400, "invalid_input", "Source manifest must match selection_sha256 and fit 128 KiB") from None
+    if manifest["schema"] != "coco-subset-source/v1":
+        raise Problem(400, "invalid_input", "Unsupported source manifest schema")
+    object_fields(manifest["source"], ("name", "version", "annotation_sha256"))
+    if (source["name"] != "COCO" or source["version"] != "val2017"
+            or manifest["source"] != {key: source[key] for key in ("name", "version", "annotation_sha256")}):
+        raise Problem(400, "invalid_input", "Source manifest must agree with the COCO val2017 declaration")
+    selection = manifest["selection"]
+    object_fields(selection, ("policy", "seed", "ordered_image_ids", "excluded_counts"))
+    string(selection["policy"], "source selection policy", 160)
+    string(selection["seed"], "source selection seed", 160)
+    if selection["policy"] != source["selection_policy"]:
+        raise Problem(400, "invalid_input", "Source selection policy mismatch")
+    ordered_ids = selection["ordered_image_ids"]
+    if not isinstance(ordered_ids, list) or not 1 <= len(ordered_ids) <= MAX_SOURCE_IMAGES:
+        raise Problem(400, "invalid_input", "Source selection requires 1..64 images")
+    for value in ordered_ids:
+        integer(value)
+    if len(set(ordered_ids)) != len(ordered_ids):
+        raise Problem(400, "invalid_input", "Source image IDs must be unique")
+    excluded = selection["excluded_counts"]
+    if not isinstance(excluded, dict) or len(excluded) > 32:
+        raise Problem(400, "invalid_input", "Source permits at most 32 exclusion reasons")
+    for reason, count in excluded.items():
+        string(reason, "source exclusion reason", 80)
+        integer(count)
+
+    from .pretrained_yolox import CLASS_NAMES, COCO_CATEGORY_IDS
+    categories = manifest["categories"]
+    if not isinstance(categories, list) or len(categories) != 80:
+        raise Problem(400, "invalid_input", "Source requires the complete 80-class COCO mapping")
+    for class_id, (category, name, source_id) in enumerate(zip(categories, CLASS_NAMES, COCO_CATEGORY_IDS)):
+        object_fields(category, ("class_id", "source_category_id", "name"))
+        integer(category["class_id"])
+        integer(category["source_category_id"])
+        if category != {"class_id": class_id, "source_category_id": source_id, "name": name}:
+            raise Problem(400, "invalid_input", "Source category mapping differs from the reviewed full COCO mapping")
+    licenses = manifest["licenses"]
+    if not isinstance(licenses, list) or not 1 <= len(licenses) <= 16:
+        raise Problem(400, "invalid_input", "Source requires 1..16 license declarations")
+    license_ids = set()
+    for license in licenses:
+        object_fields(license, ("license_id", "name"))
+        integer(license["license_id"])
+        string(license["name"], "source license name", 160)
+        if license["license_id"] in license_ids:
+            raise Problem(400, "invalid_input", "Source license IDs must be unique")
+        license_ids.add(license["license_id"])
+    images = manifest["images"]
+    if not isinstance(images, list) or len(images) != len(ordered_ids):
+        raise Problem(400, "invalid_input", "Source image records must match the selection")
+    names, annotation_ids = set(), set()
+    for image, image_id in zip(images, ordered_ids):
+        object_fields(image, ("image_id", "file_name", "width", "height", "image_sha256",
+                              "pixel_sha256", "license_id", "annotation_ids"))
+        for key in ("image_id", "width", "height", "license_id"):
+            integer(image[key])
+        string(image["file_name"], "source image filename", 160)
+        if (not safe_path(image["file_name"]) or image["file_name"].endswith("/")
+                or image["file_name"].casefold() in names or image["image_id"] != image_id
+                or not 1 <= image["width"] * image["height"] <= MAX_PIXELS
+                or image["license_id"] not in license_ids):
+            raise Problem(400, "invalid_input", "Invalid source image identity, dimensions or license")
+        names.add(image["file_name"].casefold())
+        hash_value(image["image_sha256"])
+        hash_value(image["pixel_sha256"])
+        ids = image["annotation_ids"]
+        if not isinstance(ids, list) or len(ids) > MAX_SOURCE_ANNOTATIONS:
+            raise Problem(400, "invalid_input", "Source annotation IDs exceed the 10000 annotation budget")
+        for annotation_id in ids:
+            integer(annotation_id)
+            if annotation_id in annotation_ids:
+                raise Problem(400, "invalid_input", "Source annotation IDs must be globally unique")
+            annotation_ids.add(annotation_id)
+        if len(annotation_ids) > MAX_SOURCE_ANNOTATIONS:
+            raise Problem(400, "invalid_input", "Source annotation IDs exceed the 10000 annotation budget")
+    return source
+
+
+def verify_source_samples(source, samples, classes):
+    """Bind the full inert selection declaration to actual validated ZIP content."""
+    if source is None:
+        return
+    validate_source(source)
+    manifest = source["manifest"]
+    if ([row["name"] for row in classes] != [row["name"] for row in manifest["categories"]]
+            or len(samples) != len(manifest["images"])):
+        raise ValueError("Source classes or image count mismatch")
+    for sample, image in zip(samples, manifest["images"]):
+        if (sample["split"] != "val" or sample["image"] != "images/val/" + image["file_name"]
+                or sample["boxes"] != len(image["annotation_ids"])
+                or any(sample[key] != image[key] for key in ("width", "height", "image_sha256", "pixel_sha256"))):
+            raise ValueError("Source image, pixel or annotation count mismatch")
+
+
 class Validation:
-    def __init__(self, negative_policy):
+    def __init__(self, negative_policy, purpose="training", source=None):
+        if purpose not in ("training", "evaluation") or (source is not None and purpose != "evaluation"):
+            raise Problem(400, "invalid_input", "Invalid dataset purpose or source")
+        if source is not None:
+            validate_source(source)
         self.report = {"valid": False, "errors": [], "warnings": [], "errors_truncated": False,
+                       "purpose": purpose, "source": source,
                        "counts": {"images": 0, "labels": 0, "boxes": 0, "negative_images": 0},
                        "classes": [], "splits": {s: {"images": 0, "boxes": 0, "negative_images": 0}
                                                    for s in SPLITS}, "content_sha256": None}
         self.policy = negative_policy
+        self.purpose, self.source = purpose, source
         self.manifest = None
         self.files = {}
 
@@ -170,8 +306,11 @@ class Validation:
                 raise ValueError("Unsupported YAML keys")
             if meta.get("path", ".") not in (".", ""):
                 raise ValueError("path must be relative dataset root")
+            if self.purpose == "evaluation" and any(split in meta for split in ("train", "test")):
+                raise ValueError("Evaluation datasets permit only val")
+            required_splits = ("val",) if self.purpose == "evaluation" else ("train", "val")
             for split in SPLITS:
-                if split in ("train", "val") or split in meta:
+                if split in required_splits or split in meta:
                     if meta.get(split) not in (f"images/{split}", f"./images/{split}"):
                         raise ValueError("Splits must use canonical local image directories")
             names = meta.get("names")
@@ -187,7 +326,8 @@ class Validation:
             if "nc" in meta and (type(meta["nc"]) is not int or meta["nc"] != len(names)):
                 raise ValueError("nc does not match names")
         except (ValueError, UnicodeDecodeError, yaml.YAMLError, RecursionError, TypeError):
-            self.error("data_yaml", "data.yaml", "Use unique names (1..100), matching nc and local images/train, images/val, optional images/test; no tags, aliases, downloads or other keys")
+            split_help = "only local images/val" if self.purpose == "evaluation" else "local images/train, images/val, optional images/test"
+            self.error("data_yaml", "data.yaml", f"Use unique names (1..100), matching nc and {split_help}; no tags, aliases, downloads or other keys")
             return None
         self.report["classes"] = [{"id": i, "name": name, "boxes": 0, "images": 0} for i, name in enumerate(names)]
         return meta
@@ -208,6 +348,9 @@ class Validation:
                 self.error("unexpected_file", path, "Only data.yaml and canonical images/labels split directories are supported")
                 continue
             split, tail = pieces[1], "/".join(pieces[2:])
+            if self.purpose == "evaluation" and split != "val":
+                self.error("evaluation_split", path, "Evaluation datasets permit only val images and labels")
+                continue
             suffix = PurePosixPath(tail).suffix.lower()
             stem = str(PurePosixPath(tail).with_suffix(""))
             key = (split, stem.casefold())
@@ -225,7 +368,8 @@ class Validation:
         self.report["counts"]["images"] = len(images)
         self.report["counts"]["labels"] = len(labels)
         for split in SPLITS:
-            if (split in ("train", "val") or split in meta) and not any(k[0] == split for k in images):
+            required_splits = ("val",) if self.purpose == "evaluation" else ("train", "val")
+            if (split in required_splits or split in meta) and not any(k[0] == split for k in images):
                 self.error("empty_split", f"images/{split}", "Declared train, val or test split must have images")
             if split not in meta and any(k[0] == split for k in images):
                 self.error("undeclared_split", f"images/{split}", "Image split must be declared in data.yaml")
@@ -240,6 +384,7 @@ class Validation:
             raw_image = self.files[path]
             image_hash = sha256(raw_image)
             width = height = 0
+            pixel_hash = None
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("error", Image.DecompressionBombWarning)
@@ -316,11 +461,20 @@ class Validation:
             if self.report["counts"]["boxes"] > MAX_BOXES:
                 self.error("box_limit", "labels", "Dataset exceeds 100000 bounding boxes")
                 break
-            samples.append({"image": path, "label": label, "split": split, "width": width, "height": height,
-                            "boxes": boxes, "image_sha256": image_hash,
-                            "label_sha256": sha256(self.files[label]) if label else None})
+            sample = {"image": path, "label": label, "split": split, "width": width, "height": height,
+                      "boxes": boxes, "image_sha256": image_hash,
+                      "label_sha256": sha256(self.files[label]) if label else None}
+            if self.purpose == "evaluation":
+                sample["pixel_sha256"] = pixel_hash
+            samples.append(sample)
+        if not self.report["errors"] and self.source is not None:
+            try:
+                verify_source_samples(self.source, samples, self.report["classes"])
+            except (Problem, ValueError, KeyError, TypeError):
+                self.error("source_mismatch", "source.manifest", "Source selection must match all classes, image order, dimensions, image/RGB hashes and annotation counts")
         if not self.report["errors"]:
             manifest = {"format": FORMAT, "negative_policy": self.policy,
+                        "purpose": self.purpose, "source": self.source,
                         "counts": self.report["counts"], "classes": self.report["classes"], "splits": self.report["splits"],
                         "files": [{"path": p, "bytes": len(b), "sha256": sha256(b)} for p, b in sorted(self.files.items())],
                         "samples": samples}

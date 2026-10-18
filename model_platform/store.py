@@ -8,7 +8,9 @@ from .pagination import cursor_key, pack_cursor, unpack_cursor
 from .common import (MAX_ACTIVE_RUNS, MAX_ATTEMPTS, MAX_DEPLOYMENTS, Problem,
                      RECIPE, digest, encode, environment, now)
 
-SCHEMA = """
+from .import_schema import IMPORT_SCHEMA, MODEL_TABLE
+
+SCHEMA = IMPORT_SCHEMA + """
 PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS runs (
  id TEXT PRIMARY KEY, tenant TEXT NOT NULL, idempotency_key TEXT NOT NULL,
@@ -39,12 +41,7 @@ CREATE TABLE IF NOT EXISTS evaluations (
  artifact_sha256 TEXT NOT NULL, evaluation_sha256 TEXT NOT NULL, result_json TEXT NOT NULL,
  created_at REAL NOT NULL
 );
-CREATE TABLE IF NOT EXISTS models (
- id TEXT PRIMARY KEY, tenant TEXT NOT NULL, run_id TEXT NOT NULL UNIQUE REFERENCES runs(id),
- attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(id),
- evaluation_id TEXT NOT NULL UNIQUE REFERENCES evaluations(id),
- artifact_sha256 TEXT NOT NULL, manifest_json TEXT NOT NULL, created_at REAL NOT NULL
-);
+""" + MODEL_TABLE.format(name="IF NOT EXISTS models") + ";\n" + """
 CREATE TABLE IF NOT EXISTS deployments (
  id TEXT PRIMARY KEY, tenant TEXT NOT NULL, model_version_id TEXT NOT NULL REFERENCES models(id),
  desired TEXT NOT NULL CHECK(desired IN ('running','stopped')),
@@ -78,7 +75,12 @@ class Store:
         self.runtime = runtime
         self.cursor_key = cursor_key(runtime.home)
         with runtime.connection() as db:
-            db.executescript(SCHEMA)
+            fresh = not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='models'").fetchone()
+            from .model_evaluations import SCHEMA as EVALUATION_SCHEMA
+            db.executescript(SCHEMA + EVALUATION_SCHEMA)
+            if fresh:
+                db.execute('CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY)')
+                db.execute("INSERT OR IGNORE INTO schema_migrations VALUES('imported-origin/v1')")
             for table in ("models", "evaluations"):
                 for action in ("UPDATE", "DELETE"):
                     db.execute(f"CREATE TRIGGER IF NOT EXISTS {table}_{action.lower()}_immutable "
@@ -105,7 +107,8 @@ class Store:
                     raise Problem(409, "idempotency_conflict", "Key already bound to different input")
                 return old["id"], False
             binding = dataset_detection.bind_version(datasets, tenant, body['dataset']['dataset_version_id']) if datasets else None
-            count = db.execute("SELECT count(*) FROM runs WHERE status IN ('queued','running')").fetchone()[0]
+            from .model_evaluations import active_count
+            count = active_count(db)
             if count >= MAX_ACTIVE_RUNS:
                 raise Problem(429, "run_capacity", "Active run budget reached")
             run_id = identifier("run")
@@ -182,7 +185,7 @@ class Store:
                 any(not isinstance(x, str) for x in model_ids) or model_ids[0] == model_ids[1]):
             raise Problem(400, 'invalid_input', 'Choose two distinct model version IDs')
         models = [self.model(tenant, item) for item in model_ids]
-        if any(model['recipe'] != DATASET_RECIPE for model in models):
+        if any(model.get('recipe') != DATASET_RECIPE for model in models):
             raise Problem(409, 'evaluation_incompatible', 'Cannot compare evaluations: protocol')
         evaluations = [model['evaluation'] for model in models]
         signatures = [compatibility(e) for e in evaluations]
@@ -248,7 +251,8 @@ class Store:
             count = db.execute("SELECT count(*) FROM attempts WHERE run_id=?", (run_id,)).fetchone()[0]
             if row["status"] != "failed" or count >= MAX_ATTEMPTS:
                 raise Problem(409, "retry_conflict", "Only failed runs below the attempt limit can retry")
-            active = db.execute("SELECT count(*) FROM runs WHERE status IN ('queued','running')").fetchone()[0]
+            from .model_evaluations import active_count
+            active = active_count(db)
             if active >= MAX_ACTIVE_RUNS:
                 raise Problem(429, "run_capacity", "Active run budget reached")
             db.execute("UPDATE runs SET status='queued',updated_at=? WHERE id=?", (now(), run_id))
@@ -322,7 +326,7 @@ class Store:
                        (eval_id, attempt_id, artifact_hash, evaluation["dataset_sha256"], encode(evaluation).decode(), now()))
             manifest.update(model_version_id=model_id, run_id=run["id"], attempt_id=attempt_id, evaluation_id=eval_id,
                             artifact_sha256=artifact_hash, artifact_id=attempt_id)
-            db.execute("INSERT INTO models VALUES(?,?,?,?,?,?,?,?)",
+            db.execute("INSERT INTO models(id,tenant,run_id,attempt_id,evaluation_id,artifact_sha256,manifest_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
                        (model_id, run["tenant"], run["id"], attempt_id, eval_id, artifact_hash, encode(manifest).decode(), now()))
             db.execute("UPDATE attempts SET status='succeeded',finished_at=? WHERE id=?", (now(), attempt_id))
             db.execute("UPDATE runs SET status='succeeded',model_version_id=?,updated_at=? WHERE id=?", (model_id, now(), run["id"]))
@@ -335,7 +339,9 @@ class Store:
             row = self._owned(db, "models", tenant, model_id)
             result = json.loads(row["manifest_json"])
             evaluation = db.execute("SELECT * FROM evaluations WHERE id=?", (row["evaluation_id"],)).fetchone()
-            result["evaluation"] = json.loads(evaluation["result_json"])
+            result["evaluation"] = json.loads(evaluation["result_json"]) if evaluation else None
+            from .model_imports import validate_manifest
+            validate_manifest(db, row, result)
             result["created_at"] = row["created_at"]
             return result
 
@@ -373,7 +379,13 @@ class Store:
             model = self._owned(db, "models", tenant, row["model_version_id"])
             from .recipes import REGISTRY
             manifest = json.loads(model["manifest_json"])
+            from .model_imports import validate_manifest
+            validate_manifest(db, model, manifest)
             runtime = next((spec.runtime for spec in REGISTRY.values() if spec.format == manifest["format"]), "unknown")
+            if manifest.get('origin') == 'imported':
+                from .model_imports import public_identity
+                row.update(public_identity(manifest))
+                runtime = 'onnxruntime-cpu'
             row.update(contract=manifest["contract"], runtime=runtime, resources={"processes": 1, "gpu": 0,
                        "hard_cpu_memory_isolation": False}, ready=row["observed"] == "ready" and row["desired"] == "running",
                        endpoint=f"/deployments/{deployment_id}/predict")

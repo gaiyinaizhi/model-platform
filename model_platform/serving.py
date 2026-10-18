@@ -21,17 +21,21 @@ def serve(runtime, deployment_id, fd, parent_pid):
     if not row:
         raise RuntimeError("Deployment no longer requested")
     manifest = store.model(row["tenant"], row["model_version_id"])
-    from .recipes import for_manifest
+    from .runtime_dispatch import for_manifest, artifact_path, validate_loaded_identity, public_identity
     spec = for_manifest(manifest)
-    if manifest["artifact_id"] != manifest["attempt_id"]:
-        raise ValueError("Invalid artifact binding")
-    model = spec.load(runtime.artifact(manifest["attempt_id"]), manifest["artifact_sha256"])
-    if any(model[key] != manifest[key] for key in ("recipe", "contract", "format", "dimensions")):
-        raise ValueError("Model manifest contract mismatch")
-
-    if manifest.get('recipe') == 'yolox-nano-dataset/v1':
-        from .dataset_serving import validate_identity
-        validate_identity(manifest, model)
+    imported = manifest.get('origin') == 'imported'
+    if imported:
+        # Trusted pinned bytes only; these process limits are not a sandbox.
+        import resource
+        import signal
+        from .pretrained_yolox import VALIDATION_ADDRESS_BYTES
+        resource.setrlimit(resource.RLIMIT_AS, (VALIDATION_ADDRESS_BYTES, VALIDATION_ADDRESS_BYTES))
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        signal.alarm(30)
+    model = spec.load(artifact_path(runtime, manifest), manifest["artifact_sha256"])
+    validate_loaded_identity(manifest, model)
+    if imported:
+        signal.alarm(0)
 
     class Handler(JsonHandler):
         def do_POST(self):
@@ -46,11 +50,14 @@ def serve(runtime, deployment_id, fd, parent_pid):
                     raise Problem(503, "parent_gone", "Supervisor no longer alive")
                 body = self.body()
                 object_fields(body, ("features",))
-                result = spec.predict(model, body["features"])
-                identity = {}
-                if manifest.get("recipe") == "yolox-nano-dataset/v1":
-                    from .dataset_serving import public_identity
-                    identity = public_identity(manifest)
+                if imported:
+                    signal.alarm(3)
+                try:
+                    result = spec.predict(model, body["features"])
+                finally:
+                    if imported:
+                        signal.alarm(0)
+                identity = public_identity(manifest)
                 self.respond(200, {**identity, "deployment_id": deployment_id, "model_version_id": manifest["model_version_id"],
                                    "artifact_sha256": manifest["artifact_sha256"], "contract": model["contract"], "predictions": result})
             except Problem as exc:

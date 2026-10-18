@@ -128,6 +128,8 @@ def public_report(store, tenant):
         queue = {'queued': 0, 'running': 0}
         for item in db.execute("SELECT status,count(*) AS n FROM runs WHERE tenant=? AND status IN ('queued','running') GROUP BY status", (tenant,)):
             queue[item['status']] = item['n']
+        for item in db.execute("SELECT status,count(*) AS n FROM model_evaluations WHERE tenant=? AND status IN ('queued','running') GROUP BY status", (tenant,)):
+            queue[item['status']] += item['n']
     checked_at = row['checked_at'] if row else None
     age = time.time() - checked_at if row else None
     fresh = row is not None and 0 <= age <= STALE_AFTER_SECONDS

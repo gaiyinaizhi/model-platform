@@ -1,0 +1,27 @@
+{
+  "checked": "all64 actual published raw/RGB/label/request-RGB hashes; both prediction files; full metric/matching/diagnostic recomputation;80 source categories; original imported manifest unchanged; no training rows",
+  "execution_code_sha256": "0bcb7af9a42b2a1b862fab78e6eadc137d897297f207919a40c8616ef269f876",
+  "ground_truth": 457,
+  "images": 64,
+  "metrics": {
+    "ar_100": 0.288550124601401,
+    "map_50": 0.41460834340789027,
+    "map_50_95": 0.2747798977167655
+  },
+  "note": "Historical successful audit retained; final source audit follows compatibility regression correction.",
+  "operating_point": {
+    "fn": 267,
+    "fp": 83,
+    "precision": 0.6959706959706959,
+    "recall": 0.41575492341356673,
+    "tp": 190
+  },
+  "pair_ids": [
+    "mev_c790e21760a2468f9d9056df35cdf324",
+    "mev_28ed2a4f42ab457bbf8bbc045cc2e4c4"
+  ],
+  "prediction_sha256": "ef25f77939bfd3de12b1bd66443bc9547a5b199125d094ed8f8a2d2f414f0d25",
+  "predictions": 273,
+  "result_sha256": "db074fc399044e721c5af4e0c1e01961cf8445e7b0d9fd796aabddc24ff5bee4",
+  "status": "superseded_by_final_compatibility_fix_source"
+}

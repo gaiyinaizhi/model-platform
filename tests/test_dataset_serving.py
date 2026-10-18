@@ -90,6 +90,25 @@ class DatasetServingTests(unittest.TestCase):
             with self.subTest(path=path),self.assertRaises((ValueError,TypeError,KeyError)):
                 dataset_serving.validate_identity(bad,loaded)
 
+    def test_shared_ar_preserves_legacy_protocol_and_comparison_identity(self):
+        evaluation=copy.deepcopy(self.manifest['evaluation'])
+        dependencies=self.manifest['dependencies']
+        self.assertNotIn('ar_100_iou_thresholds',evaluation['parameters'])
+        self.assertNotIn('ar_100_area',evaluation['parameters'])
+        signature=recipe.compatibility(evaluation)
+        with_ar_metric=copy.deepcopy(evaluation)
+        with_ar_metric['ar_100']=.25
+        self.assertEqual(signature,recipe.compatibility(with_ar_metric))
+        self.assertEqual(evaluation['compatibility_key'],digest(signature))
+        dataset_serving.validate_evaluation_protocol(evaluation,dependencies)
+        for key,value in [('ar_100_area','all'),('ar_100_iou_thresholds',[.5]),
+                          ('unexpected_protocol_key',0)]:
+            bad=copy.deepcopy(evaluation);bad['parameters'][key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):
+                dataset_serving.validate_evaluation_protocol(bad,dependencies)
+        loaded=recipe.load_model(self.path,self.artifact_hash)
+        dataset_serving.validate_identity(self.manifest,loaded)
+
     def test_actual_onnx_lifecycle_idempotency_ownership_restart_and_stop(self):
         did=self.deploy();ready=self.ready(did)
         for key,value in dataset_serving.public_identity(self.manifest).items():self.assertEqual(ready[key],value)

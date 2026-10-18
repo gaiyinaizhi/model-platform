@@ -45,11 +45,21 @@ def execute(store, run, attempt_id):
 def run_worker(runtime, once=False):
     with runtime.lock("worker"):
         store = Store(runtime)
-        recovered = store.recover_worker()
+        from .model_evaluations import ModelEvaluationStore, execute as execute_evaluation
+        evaluations = ModelEvaluationStore(store)
+        recovered = store.recover_worker() + evaluations.recover()
         print(f"worker started; interrupted attempts: {recovered}", flush=True)
         heartbeat = WorkerHeartbeat(runtime, probe_dependencies()).start()
         try:
             while True:
+                evaluation = evaluations.claim()
+                if evaluation:
+                    heartbeat.set_state("busy")
+                    execute_evaluation(evaluations, evaluation, EXECUTION_ENVIRONMENT)
+                    heartbeat.set_state("idle")
+                    if once:
+                        return
+                    continue
                 job = store.claim()
                 if job:
                     heartbeat.set_state("busy")

@@ -1,0 +1,20 @@
+YOLOX pretrained import adapter source notice
+
+Upstream: https://github.com/Megvii-BaseDetection/YOLOX
+Fixed commit: 6ddff4824372906469a7fae2dc3206c7aa4bbaee
+Copyright (c) Megvii Inc. All rights reserved.
+Copyright (c) Megvii, Inc. and its affiliates.
+License: Apache License, Version 2.0; full text retained in
+model_platform/yolox_nano/LICENSE.
+
+model_platform/pretrained_yolox.py adapts preprocessing, raw grid decode,
+class-agnostic NMS and labels from yolox/data/data_augment.py,
+yolox/utils/demo_utils.py and yolox/data/datasets/coco_classes.py.
+Modifications: explicit bounded RGB input adapter; fixed 416 shape/thresholds;
+finite-output checks; output clipping, degenerate removal and cap100;
+hash-before-parse allowlist, secure files, resource-limited validation,
+CPU-only runtime and independent imported-model identity.
+
+The upstream repository code license is not represented as verification of
+this uploaded weight asset's license or permission to redistribute weights.
+The asset is not included in this source tree; download/export is disabled.

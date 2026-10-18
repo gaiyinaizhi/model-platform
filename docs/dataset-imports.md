@@ -145,3 +145,11 @@ SQLite 触发器阻止修改/删除已发布版本和覆盖已保存校验报告
 ## 后续训练增量
 
 版本发布后可选择新的受控 `yolox-nano-dataset/v1`。训练预算小于导入预算，不能将导入成功理解为任意规模可训练。版本关联、类别、val/test、mAP和可比性契约见 [dataset-training.md](dataset-training.md)。
+
+## 独立评估用途（2026-10-18）
+
+导入元数据可显式指定 `purpose: "evaluation"`，用于独立评估已登记的导入模型；仅允许非空 `val`，不得包含 train/test。省略 purpose 仍保持原 training 语义和原 train+val 规则；旧请求的原始幂等摘要不补字段、不重写已发布 manifest。评估用途版本不可用于训练，训练绑定返回 `400 dataset_training_purpose`。
+
+可选 `source` 包含有界、不可变且逐文件/RGB/标注数量核验的来源 manifest；完整契约、80类稀疏 COCO 映射、限额和独立评估 API 见 [独立评估契约](independent-evaluation-contract.md)。来源声明及历史许可记录不构成外部完整性审计或当前许可认证。独立评估不产生训练记录，也不修改导入模型原登记时的 `evaluation:null` 或 provenance。
+
+数据集版本列表中的 source 仅返回 name/version/annotation_sha256/selection_sha256/selection_policy 五字段摘要；详情仍保留完整 source.manifest。来源整数值限制在 JavaScript 安全整数范围（≤2^53−1），同时遵守各字段更小的限额。
