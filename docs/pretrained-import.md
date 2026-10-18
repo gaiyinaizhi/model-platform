@@ -100,3 +100,8 @@ MP_HOME=/absolute/private/runtime .venv-pretrained/bin/python -m model_platform.
 ```
 
 缺资产/依赖/reference时相关测试明确skip；不能把skip写为实际推理通过。固定helper文件在执行前校验 SHA256，摘要见证据JSON。全量回归命令仍为 README 的 unittest discover；本轮结果见上方及证据JSON。
+
+
+## 后续独立评估记录（2026-10-18）
+
+现在可通过[独立评估 API](independent-evaluation-contract.md)为此已登记模型创建新的独立评估记录。导入时的 `evaluation:null`、`local_evaluation_status:not_evaluated`、import/validation、许可与来源字段继续保持原文，表示登记时未做数据集评估；后续结果由单独记录查询，不篡改原 manifest，不生成假的 TrainingRun。固定服务 score>0.3 / class-agnostic NMS0.45 / top100、明确 OpenCV max384 调整后评估；其结果不等于官方 COCO benchmark，也不保证浏览器 JPEG 解码/画布缩放的逐像素一致性。

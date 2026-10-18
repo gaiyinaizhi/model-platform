@@ -9,7 +9,8 @@ import threading
 import uuid
 
 from .common import Problem, digest, encode, now, object_fields, text_value
-from .dataset_validation import Validation, MAX_ARCHIVE_BYTES, dependencies, sha256
+from .dataset_validation import (Validation, MAX_ARCHIVE_BYTES, dependencies, sha256,
+                                 safe_path, validate_source, verify_source_samples)
 
 MAX_DATASET_BYTES = 512 * 1024 * 1024
 MAX_IMPORTS = 256
@@ -18,6 +19,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS dataset_imports (
  id TEXT PRIMARY KEY, tenant TEXT NOT NULL, idempotency_key TEXT NOT NULL,
  request_sha256 TEXT NOT NULL, name TEXT NOT NULL, negative_policy TEXT NOT NULL,
+ purpose TEXT NOT NULL DEFAULT 'training' CHECK(purpose IN ('training','evaluation')), source_json TEXT,
  created_at REAL NOT NULL, status TEXT NOT NULL CHECK(status IN ('awaiting_upload','valid','invalid','published')),
  archive_sha256 TEXT, report_json TEXT, manifest_json TEXT, version_id TEXT, stored_bytes INTEGER NOT NULL DEFAULT 0,
  UNIQUE(tenant,idempotency_key)
@@ -56,6 +58,17 @@ class DatasetStore:
         self.operation_lock = threading.Lock()
         with runtime.connection() as db:
             db.executescript(SCHEMA)
+            # Additive migration preserves old request digests and manifest bytes.
+            # BEGIN IMMEDIATE also serializes concurrent Store initializations.
+            db.execute("BEGIN IMMEDIATE")
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(dataset_imports)")}
+            if "purpose" not in columns:
+                db.execute("ALTER TABLE dataset_imports ADD COLUMN purpose TEXT NOT NULL DEFAULT 'training' CHECK(purpose IN ('training','evaluation'))")
+            if "source_json" not in columns:
+                db.execute("ALTER TABLE dataset_imports ADD COLUMN source_json TEXT")
+            db.execute("""CREATE TRIGGER IF NOT EXISTS dataset_import_purpose_immutable
+                BEFORE UPDATE OF purpose,source_json ON dataset_imports
+                BEGIN SELECT RAISE(ABORT,'dataset import purpose and source are immutable'); END""")
 
     @contextlib.contextmanager
     def operation(self):
@@ -80,13 +93,23 @@ class DatasetStore:
         return row
 
     def create(self, tenant, key, body):
-        object_fields(body, ("name", "rights_confirmed", "negative_policy"))
+        object_fields(body, ("name", "rights_confirmed", "negative_policy"), ("purpose", "source"))
         name = text_value(body["name"], "name", 100)
         if not name.strip() or name != name.strip() or any(ord(c) == 127 for c in name):
             raise Problem(400, "invalid_input", "Dataset name must be nonempty without surrounding spaces")
         if body["rights_confirmed"] is not True or body["negative_policy"] not in ("reject", "allow_empty"):
             raise Problem(400, "invalid_input", "Confirm dataset usage rights and choose reject or allow_empty negative policy")
+        purpose = body.get("purpose", "training")
+        if purpose not in ("training", "evaluation"):
+            raise Problem(400, "invalid_input", "Dataset purpose must be training or evaluation")
+        if "source" in body:
+            if purpose != "evaluation":
+                raise Problem(400, "invalid_input", "Source declarations are only supported for evaluation imports")
+            validate_source(body["source"])
+        source = body.get("source")
         key = text_value(key, "Idempotency-Key", 128)
+        # Do not insert default fields before hashing: legacy omitted-purpose
+        # requests must replay against the very same persisted request digest.
         request_hash = digest(body)
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -98,15 +121,23 @@ class DatasetStore:
             if db.execute("SELECT count(*) FROM dataset_imports").fetchone()[0] >= MAX_IMPORTS:
                 raise Problem(429, "dataset_capacity", "Runtime limit of 256 dataset import records reached")
             item_id = identifier("dsi")
-            db.execute("INSERT INTO dataset_imports(id,tenant,idempotency_key,request_sha256,name,negative_policy,created_at,status) VALUES(?,?,?,?,?,?,?,?)",
-                       (item_id, tenant, key, request_hash, name, body["negative_policy"], now(), "awaiting_upload"))
+            db.execute("INSERT INTO dataset_imports(id,tenant,idempotency_key,request_sha256,name,negative_policy,purpose,source_json,created_at,status) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                       (item_id, tenant, key, request_hash, name, body["negative_policy"], purpose,
+                        encode(source).decode() if source is not None else None, now(), "awaiting_upload"))
             return self.import_value(self.owned(db, "dataset_imports", tenant, item_id)), True
 
     @staticmethod
     def import_value(row):
+        purpose = row["purpose"]
+        source = json.loads(row["source_json"]) if row["source_json"] else None
+        report = json.loads(row["report_json"]) if row["report_json"] else None
+        if report is not None:
+            report.setdefault("purpose", purpose)
+            report.setdefault("source", source)
         return {"id": row["id"], "name": row["name"], "status": row["status"],
+                "purpose": purpose, "source": source,
                 "negative_policy": row["negative_policy"], "created_at": row["created_at"],
-                "version_id": row["version_id"], "report": json.loads(row["report_json"]) if row["report_json"] else None}
+                "version_id": row["version_id"], "report": report}
 
     def get_import(self, tenant, item_id):
         with self.runtime.connection() as db:
@@ -134,7 +165,8 @@ class DatasetStore:
                 if row["archive_sha256"] != archive_hash:
                     raise Problem(409, "dataset_upload_conflict", "Import already validated different ZIP bytes; create a new import")
                 return self.get_import(tenant, item_id)
-            report, manifest, files = Validation(row["negative_policy"]).validate(raw)
+            source = json.loads(row["source_json"]) if row["source_json"] else None
+            report, manifest, files = Validation(row["negative_policy"], row["purpose"], source).validate(raw)
             target = self.root / "staging" / item_id
             temporary = self.root / "temporary" / identifier("upload")
             stored_bytes = sum(len(b) for b in files.values())
@@ -177,7 +209,12 @@ class DatasetStore:
         try:
             if digest(manifest) != content_hash or not path.is_dir() or path.is_symlink():
                 raise ValueError("Manifest mismatch")
+            if any(not isinstance(entry["path"], str) or not safe_path(entry["path"])
+                   or entry["path"].endswith("/") for entry in manifest["files"]):
+                raise ValueError("Unsafe manifest path")
             expected = {f["path"] for f in manifest["files"]}
+            if len(expected) != len(manifest["files"]):
+                raise ValueError("Duplicate manifest path")
             actual = set()
             for directory, dirs, files in os.walk(path, followlinks=False):
                 if any((Path(directory) / name).is_symlink() for name in dirs):
@@ -193,8 +230,19 @@ class DatasetStore:
                 item = path / entry["path"]
                 if item.stat().st_size != entry["bytes"] or sha256(item.read_bytes()) != entry["sha256"]:
                     raise ValueError("File hash changed")
-        except (OSError, ValueError, KeyError, TypeError):
+            if manifest.get("source") is not None:
+                if manifest.get("purpose") != "evaluation":
+                    raise ValueError("Source purpose mismatch")
+                verify_source_samples(manifest["source"], manifest["samples"], manifest["classes"])
+        except (OSError, ValueError, KeyError, TypeError, Problem):
             raise Problem(409, "dataset_integrity", "Dataset snapshot is missing or has changed; publication/use is blocked") from None
+
+    @staticmethod
+    def verify_import_identity(row, manifest):
+        source = json.loads(row["source_json"]) if row["source_json"] else None
+        if (manifest.get("purpose", "training") != row["purpose"]
+                or manifest.get("source") != source or manifest["negative_policy"] != row["negative_policy"]):
+            raise Problem(409, "dataset_integrity", "Dataset purpose or source binding has changed")
 
     def publish(self, tenant, item_id):
         with self.operation():
@@ -205,6 +253,7 @@ class DatasetStore:
                 if row["status"] != "valid":
                     raise Problem(409, "dataset_not_valid", "Only an import with a valid report can be published")
                 manifest = json.loads(row["manifest_json"])
+                self.verify_import_identity(row, manifest)
                 content_hash = json.loads(row["report_json"])["content_sha256"]
                 old = db.execute("SELECT id FROM dataset_versions WHERE tenant=? AND name=? AND content_sha256=?",
                                  (tenant, row["name"], content_hash)).fetchone()
@@ -252,6 +301,13 @@ class DatasetStore:
     def version_value(row, full=False):
         manifest = json.loads(row["manifest_json"])
         result = {k: row[k] for k in ("id", "name", "created_at", "content_sha256", "source_import_id")}
+        source = manifest.get("source")
+        # Full selection evidence belongs to detail; multiplying 128 KiB by
+        # every retained version would exceed the existing 8 MiB BFF budget.
+        if source is not None and not full:
+            source = {key: source[key] for key in ("name", "version", "annotation_sha256",
+                                                   "selection_sha256", "selection_policy")}
+        result.update(purpose=manifest.get("purpose", "training"), source=source)
         result.update({k: manifest[k] for k in ("negative_policy", "counts", "classes", "splits")})
         if full:
             result["manifest"] = manifest
@@ -260,7 +316,13 @@ class DatasetStore:
     def get_version(self, tenant, version_id):
         with self.runtime.connection() as db:
             row = self.owned(db, "dataset_versions", tenant, version_id)
-        self.verify_snapshot(self.root / "versions" / version_id, json.loads(row["manifest_json"]), row["content_sha256"])
+            imported = db.execute("SELECT * FROM dataset_imports WHERE tenant=? AND id=?",
+                                  (tenant, row["source_import_id"])).fetchone()
+            if imported is None or imported["name"] != row["name"]:
+                raise Problem(409, "dataset_integrity", "Dataset import ownership binding has changed")
+            manifest = json.loads(row["manifest_json"])
+            self.verify_import_identity(imported, manifest)
+        self.verify_snapshot(self.root / "versions" / version_id, manifest, row["content_sha256"])
         return self.version_value(row, True)
 
     def list_versions(self, tenant):

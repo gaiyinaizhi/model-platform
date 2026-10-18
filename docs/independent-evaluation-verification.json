@@ -1,0 +1,183 @@
+{
+  "artifact_sha256": "c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d",
+  "binding_sha256": "0dbce53f78759b1cb76db3c7dfef5aa260065def3ec0a9ce9da6df7a6c5377c0",
+  "dataset_content_sha256": "89d06db50ce1200c91922de43a5eeb66781a389c60f584f16c78e7ba59a45511",
+  "date": "2026-10-18",
+  "detail_bytes": [
+    101780,
+    101781
+  ],
+  "environment": {
+    "code_sha256": "ba40e485af5ee0237dd055ce94c5084f97f85a0c54aece699ef13695d2e0786c",
+    "dependencies": {
+      "Pillow": "12.3.0",
+      "numpy": "2.3.5",
+      "onnxruntime": "1.23.2",
+      "opencv": "4.13.0.92",
+      "pycocotools": "2.0.11"
+    },
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+    "python": "3.12.14"
+  },
+  "evaluation_ids": [
+    "mev_80737ff2811244889d2c02614a801334",
+    "mev_bf34bdf3e13f4ed98f18e4b5bf1759da"
+  ],
+  "imported_model_manifest_sha256": "b580b642169fa5158dfd13f5b793bfb9fba481d89a66f9ed99291d6fb41f5a91",
+  "metrics": {
+    "ar_100": 0.288550124601401,
+    "counts": {
+      "categories": 80,
+      "categories_with_ground_truth": 60,
+      "ground_truth_boxes": 457,
+      "images": 64,
+      "images_with_ground_truth": 62,
+      "images_with_predictions": 60,
+      "images_without_ground_truth": 2,
+      "predictions": 273,
+      "predictions_above_max_detections": 0
+    },
+    "map_50": 0.41460834340789027,
+    "map_50_95": 0.2747798977167655
+  },
+  "model_manifest_unchanged": true,
+  "operating_point": {
+    "fn": 267,
+    "fp": 83,
+    "precision": 0.6959706959706959,
+    "recall": 0.41575492341356673,
+    "tp": 190
+  },
+  "prediction_sha256": "ef25f77939bfd3de12b1bd66443bc9547a5b199125d094ed8f8a2d2f414f0d25",
+  "protocol": {
+    "id": "imported-coco-serving-evaluation/v1",
+    "inference_protocol": "yolox-nano-coco-onnx/v1",
+    "input_size": 416,
+    "matching_protocol": "class-aware-greedy-iou50/v1",
+    "max_detections": 100,
+    "max_input_side": 384,
+    "metric_protocol": "coco-style-bbox-subset/v1",
+    "nms_class_agnostic": true,
+    "nms_iou_threshold": 0.45,
+    "resize": "opencv-inter-linear-floor-max384-no-upscale/v1",
+    "score_operator": ">",
+    "score_threshold": 0.3
+  },
+  "repeat_exact_binding_result_prediction_digest": true,
+  "result_sha256": "a7256a3458a97466cdbaa12ff754b5aa8cf568429a444a12dbbc7d835d750716",
+  "schema": "independent-evaluation-verification/v1",
+  "scope": "actual reviewed imported asset; fixed64 noncrowd COCO val2017 subset; thresholded serving protocol, not official benchmark",
+  "source_selection_sha256": "6638afe4a6a9d88169781730d994f709d4011336c82023a1a14cb3112a507f4a",
+  "submission_environment": {
+    "code_sha256": "ba40e485af5ee0237dd055ce94c5084f97f85a0c54aece699ef13695d2e0786c",
+    "dependencies": "{\"Pillow\":\"12.3.0\",\"numpy\":\"2.3.5\",\"onnx\":\"1.20.1\",\"onnxruntime\":\"1.23.2\",\"opencv\":\"4.13.0.92\",\"pycocotools\":\"2.0.11\"}",
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+    "python": "3.12.14"
+  },
+  "training_table_counts": {
+    "attempts": 0,
+    "evaluations": 0,
+    "runs": 0
+  },
+  "verification": {
+    "affected_postfix_optional_suite": {
+      "command": "PYTHONPATH=tests python -m unittest test_dataset_serving test_dataset_training test_detection_evaluation test_independent_metrics test_model_evaluations -v",
+      "passed": 69,
+      "skipped": 0
+    },
+    "bff_real_fixture": {
+      "broader_bff_suite_previous_passed": 124,
+      "broader_bff_suite_previous_skipped": 0,
+      "command": "BFF_EVALUATION_FIXTURE=<private actual fixture> node --test test/evaluations.test.ts",
+      "final_evaluation_suite_passed": 29,
+      "final_evaluation_suite_skipped": 0,
+      "strict_parser": "passed on final refreshed fixture",
+      "typescript": "passed"
+    },
+    "dedicated_backend_tests": {
+      "command": "PYTHONPATH=tests python -m unittest test_model_evaluations -v",
+      "coverage": [
+        "strict HTTP auth/idempotency/filter",
+        "combined queue capacity and FIFO order",
+        "terminal immutability and restart recovery",
+        "actual child timeout and process reap",
+        "actual orphan evaluator parent-death exit",
+        "source/environment mismatch fails before execution",
+        "model provenance unchanged and no training records",
+        "coherent polling snapshot during concurrent success",
+        "post-transaction-lock deadline enforcement",
+        "post-acceptance resource failures normalize to integrity error",
+        "result/binding/prediction tamper",
+        "post-init evidence-root symlink rejection",
+        "response/evidence/record budgets",
+        "outer resize and bounded diagnostic examples"
+      ],
+      "passed": 22,
+      "skipped": 0
+    },
+    "host_full_suite_earlier_snapshot": {
+      "passed": 288,
+      "skipped": 54,
+      "total": 342
+    },
+    "independent_recompute": {
+      "checks": [
+        "all64 raw image, decoded RGB, labels and request RGB digests",
+        "identical retained prediction bytes across both final runs",
+        "full AP/AR/per-class and one-to-one matching diagnostic recomputation",
+        "imported registration manifest unchanged and0 training rows"
+      ],
+      "evidence": "independent-evaluation-review-evidence.json",
+      "independent_lifecycle_tests_passed": 22,
+      "status": "passed"
+    },
+    "optional_full_suite": {
+      "returncode": 0,
+      "selection": "All discovered tests including authorized real imported-model asset tests, excluding only official fashion cache and pinned upstream reference tests; no skips allowed",
+      "tests": 344,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "discovered": 346,
+      "excluded": [
+        "test_fashion_data.OptionalOfficialCacheTests.test_full_source_is_reverified_offline",
+        "test_pretrained_yolox.UpstreamParityTests.test_exact_upstream_helpers"
+      ],
+      "seconds": 144.081,
+      "log_sha256": "1536c7f0a2a28616e802e35f556e6e5c0f9c283e7bb0bf127a3923f3dd38b6c7",
+      "execution": "python3 qa/full_backend.py through visible own-cloud Terminal",
+      "real_asset_tests_included": true,
+      "execution_code_sha256": "ba40e485af5ee0237dd055ce94c5084f97f85a0c54aece699ef13695d2e0786c"
+    },
+    "optional_full_suite_initial": {
+      "cause": "Shared evaluator AR metadata changed strict legacy parameter schema",
+      "correction": "Shared parameter object remains legacy-exact; independent wrapper alone adds AR metadata",
+      "errors": 1,
+      "failures": 2,
+      "legacy_comparison_function_unchanged": true,
+      "legacy_serving_validator_byte_identical_to_baseline": true,
+      "passed": 334,
+      "skipped": 0,
+      "total": 337
+    },
+    "actual_browser_acceptance": {
+      "status": "passed",
+      "source": "verification/qa-browser-acceptance.json",
+      "pair_persistence_evidence": "verification/qa-browser-persistence-audit.json",
+      "independent_review": "independent-evaluation-browser-review-evidence.json"
+    }
+  },
+  "warnings": [
+    "Fixed non-crowd subset at the serving operating point; not the official COCO benchmark.",
+    "All80 classes retained; categories without ground truth excluded from AP/AR macro averages.",
+    "Dataset source and label completeness are declared provenance, not an external audit.",
+    "COCO pretraining overlap is not independently excluded; weight license remains unverified.",
+    "Logical budgets and process separation are not production multi-tenant isolation.",
+    "Uses unchanged server inference with declared OpenCV caller resize; browser JPEG decoding or resizing may differ."
+  ],
+  "wrong_examples": {
+    "limit": 20,
+    "total": 55,
+    "truncated": true
+  }
+}

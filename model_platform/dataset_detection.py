@@ -63,6 +63,8 @@ def labels(raw, width, height):
 def bind_version(datasets, tenant, version_id):
     version = datasets.get_version(tenant, version_id)  # Ownership precedes paths.
     manifest = version['manifest']
+    if version.get('purpose', manifest.get('purpose', 'training')) != 'training':
+        raise Problem(400, 'dataset_training_purpose', 'Evaluation-purpose datasets cannot be used for training')
     classes = [{'id': row['id'], 'name': row['name']} for row in version['classes']]
     counts = {split: version['splits'][split]['images'] for split in ('train', 'val', 'test')}
     if not 1 <= len(classes) <= MAX_CLASSES or not 1 <= counts['train'] <= MAX_TRAIN or not 1 <= counts['val'] <= MAX_EVALUATION or counts['test'] > MAX_EVALUATION:

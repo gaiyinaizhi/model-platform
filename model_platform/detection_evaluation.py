@@ -142,7 +142,7 @@ def _prepare(images, annotations, predictions, categories):
 
 
 def evaluate_detections(images, annotations, predictions, categories, *, include_per_class=True):
-    """Return measured AP plus the complete evaluation settings and counts.
+    """Return measured AP/AR@100 plus complete evaluation settings and counts.
 
     images: [{id: str|int, width: int, height: int}], including negative images.
     categories: [{id: int, name: str}], IDs exactly 0..K-1, in any order.
@@ -160,7 +160,8 @@ def evaluate_detections(images, annotations, predictions, categories, *, include
     AP uses 101 recall points, ten IoU thresholds 0.50..0.95, area=all and
     maxDets=100 per image/category. Categories without GT are excluded from the
     macro average and have None AP, as does an entirely GT-free evaluation.
-    Empty detections with present GT yield measured zero AP. Invalid data raises
+    AR@100 uses the same ten IoUs, all-area range and category macro average.
+    Empty detections with present GT yield measured zero AP/AR. Invalid data raises
     ValueError; missing optional dependencies raises RuntimeError.
     """
     if type(include_per_class) is not bool:
@@ -202,6 +203,7 @@ def evaluate_detections(images, annotations, predictions, categories, *, include
     # The standard summary uses the mean of entries > -1; use the same reduction
     # directly, as summarize() also prints irrelevant small/medium/large metrics.
     precision = evaluator.eval["precision"][:, :, :, 0, 2]
+    recall = evaluator.eval["recall"][:, :, 0, 2]
 
     def ap(values):
         valid = values[values > -1]
@@ -217,6 +219,7 @@ def evaluate_detections(images, annotations, predictions, categories, *, include
         "status": "evaluated" if ground_truth else "no_ground_truth",
         "map_50": ap(precision[0]),
         "map_50_95": ap(precision),
+        "ar_100": ap(recall),
         "evaluator": {"implementation": "pycocotools.cocoeval.COCOeval",
                       "version": version("pycocotools")},
         "parameters": {
@@ -256,7 +259,83 @@ def evaluate_detections(images, annotations, predictions, categories, *, include
             {"category_id": category["id"] - 1, "name": category["name"],
              "ground_truth_boxes": gt_counts[category["id"]], "predictions": dt_counts[category["id"]],
              "status": "evaluated" if gt_counts[category["id"]] else "no_ground_truth",
-             "ap_50": ap(precision[0, :, index]), "ap_50_95": ap(precision[:, :, index])}
+             "ap_50": ap(precision[0, :, index]), "ap_50_95": ap(precision[:, :, index]),
+             "ar_100": ap(recall[:, index])}
             for index, category in enumerate(coco_categories)
         ]
     return result
+
+
+def match_detections(images, annotations, predictions, categories, *, max_examples=64):
+    """Class-aware one-to-one matches at IoU >= 0.5 on all supplied detections.
+
+    Descending score, then original prediction order resolves score ties. A
+    prediction chooses the highest-IoU unmatched same-class GT; equal IoU uses
+    original annotation order. Duplicate predictions remain false positives.
+    Negative images and classes without GT still contribute false positives.
+    These are matching outcomes, not causal diagnoses. AP/AR remain separate
+    COCOeval metrics. Inputs use original-image xyxy coordinates.
+    """
+    if type(max_examples) is not int or not 0 <= max_examples <= 64:
+        raise ValueError("max_examples must be an integer in [0, 64]")
+    _prepare(images, annotations, predictions, categories)
+
+    def iou(a, b):
+        intersection = max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(
+            0.0, min(a[3], b[3]) - max(a[1], b[1]))
+        union = (a[2]-a[0])*(a[3]-a[1]) + (b[2]-b[0])*(b[3]-b[1]) - intersection
+        return intersection / union
+
+    gt_by_image, dt_by_image = {}, {}
+    for index, row in enumerate(annotations):
+        gt_by_image.setdefault(row["image_id"], []).append((index, row))
+    for index, row in enumerate(predictions):
+        dt_by_image.setdefault(row["image_id"], []).append((index, row))
+    counts = {category["id"]: {"tp": 0, "fp": 0, "fn": 0} for category in categories}
+    outcomes, examples = [], []
+    for image in images:
+        image_id = image["id"]
+        ground_truth = gt_by_image.get(image_id, [])
+        detections = sorted(dt_by_image.get(image_id, []), key=lambda item: (-item[1]["score"], item[0]))
+        used, matches, false_positives = set(), [], []
+        for prediction_index, prediction in detections:
+            candidates = [(iou(prediction["bbox"], gt["bbox"]), -index, index)
+                          for index, gt in ground_truth
+                          if index not in used and gt["category_id"] == prediction["category_id"]]
+            best = max(candidates, default=(0.0, 0, None))
+            if best[0] >= 0.5:
+                used.add(best[2])
+                counts[prediction["category_id"]]["tp"] += 1
+                matches.append({"prediction_index": prediction_index, "annotation_index": best[2], "iou": best[0]})
+            else:
+                counts[prediction["category_id"]]["fp"] += 1
+                false_positives.append(prediction_index)
+        false_negatives = [index for index, gt in ground_truth if index not in used]
+        for index, gt in ground_truth:
+            if index not in used:
+                counts[gt["category_id"]]["fn"] += 1
+        outcome = {"image_id": image_id, "tp": len(matches), "fp": len(false_positives),
+                   "fn": len(false_negatives), "matches": matches,
+                   "false_positive_prediction_indices": false_positives,
+                   "false_negative_annotation_indices": false_negatives}
+        outcomes.append(outcome)
+        if (false_positives or false_negatives) and len(examples) < max_examples:
+            examples.append({**outcome, "width": image["width"], "height": image["height"],
+                             "annotations": [{"index": index, **row} for index, row in ground_truth],
+                             "predictions": [{"index": index, **row} for index, row in detections]})
+    totals = {key: sum(row[key] for row in counts.values()) for key in ("tp", "fp", "fn")}
+
+    def ratios(row):
+        return {**row, "precision": row["tp"] / (row["tp"] + row["fp"]) if row["tp"] + row["fp"] else None,
+                "recall": row["tp"] / (row["tp"] + row["fn"]) if row["tp"] + row["fn"] else None}
+
+    return {"protocol": "class-aware-greedy-iou50/v1", "iou_threshold": 0.5,
+            "ordering": "descending_score_then_prediction_input_order; highest_iou_then_annotation_input_order",
+            "prediction_scope": "all_supplied_predictions_no_additional_filter_or_cap",
+            "totals": ratios(totals),
+            "per_class": [{"category_id": category["id"], "name": category["name"], **ratios(counts[category["id"]])}
+                          for category in sorted(categories, key=lambda item: item["id"])],
+            "per_image": outcomes, "wrong_examples": examples,
+            "wrong_examples_total": sum(bool(row["fp"] or row["fn"]) for row in outcomes),
+            "wrong_examples_limit": max_examples,
+            "limitations": "Matching outcomes at IoU 0.5 are not causal diagnoses or official benchmark results."}

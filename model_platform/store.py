@@ -76,7 +76,8 @@ class Store:
         self.cursor_key = cursor_key(runtime.home)
         with runtime.connection() as db:
             fresh = not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='models'").fetchone()
-            db.executescript(SCHEMA)
+            from .model_evaluations import SCHEMA as EVALUATION_SCHEMA
+            db.executescript(SCHEMA + EVALUATION_SCHEMA)
             if fresh:
                 db.execute('CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY)')
                 db.execute("INSERT OR IGNORE INTO schema_migrations VALUES('imported-origin/v1')")
@@ -106,7 +107,8 @@ class Store:
                     raise Problem(409, "idempotency_conflict", "Key already bound to different input")
                 return old["id"], False
             binding = dataset_detection.bind_version(datasets, tenant, body['dataset']['dataset_version_id']) if datasets else None
-            count = db.execute("SELECT count(*) FROM runs WHERE status IN ('queued','running')").fetchone()[0]
+            from .model_evaluations import active_count
+            count = active_count(db)
             if count >= MAX_ACTIVE_RUNS:
                 raise Problem(429, "run_capacity", "Active run budget reached")
             run_id = identifier("run")
@@ -249,7 +251,8 @@ class Store:
             count = db.execute("SELECT count(*) FROM attempts WHERE run_id=?", (run_id,)).fetchone()[0]
             if row["status"] != "failed" or count >= MAX_ATTEMPTS:
                 raise Problem(409, "retry_conflict", "Only failed runs below the attempt limit can retry")
-            active = db.execute("SELECT count(*) FROM runs WHERE status IN ('queued','running')").fetchone()[0]
+            from .model_evaluations import active_count
+            active = active_count(db)
             if active >= MAX_ACTIVE_RUNS:
                 raise Problem(429, "run_capacity", "Active run budget reached")
             db.execute("UPDATE runs SET status='queued',updated_at=? WHERE id=?", (now(), run_id))

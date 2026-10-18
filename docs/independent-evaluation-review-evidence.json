@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "checked": "all64 actual published raw/RGB/label/request-RGB hashes; both prediction files; full metric/matching/diagnostic recomputation;80 source categories; original imported manifest unchanged; no training rows",
+  "images": 64,
+  "ground_truth": 457,
+  "predictions": 273,
+  "metrics": {
+    "map_50": 0.41460834340789027,
+    "map_50_95": 0.2747798977167655,
+    "ar_100": 0.288550124601401
+  },
+  "operating_point": {
+    "tp": 190,
+    "fp": 83,
+    "fn": 267,
+    "precision": 0.6959706959706959,
+    "recall": 0.41575492341356673
+  },
+  "prediction_sha256": "ef25f77939bfd3de12b1bd66443bc9547a5b199125d094ed8f8a2d2f414f0d25",
+  "result_sha256": "a7256a3458a97466cdbaa12ff754b5aa8cf568429a444a12dbbc7d835d750716",
+  "execution_code_sha256": "ba40e485af5ee0237dd055ce94c5084f97f85a0c54aece699ef13695d2e0786c",
+  "pair_ids": [
+    "mev_80737ff2811244889d2c02614a801334",
+    "mev_bf34bdf3e13f4ed98f18e4b5bf1759da"
+  ]
+}

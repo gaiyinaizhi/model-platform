@@ -58,6 +58,8 @@ def make_handler(store, supervisor, auth):
     delivery = Delivery(store)
     from .model_imports import ModelImportStore, catalog, ASSET_BYTES
     imports = ModelImportStore(store)
+    from .model_evaluations import ModelEvaluationStore
+    evaluations = ModelEvaluationStore(store)
 
     class Handler(JsonHandler):
         def do_GET(self):
@@ -76,7 +78,7 @@ def make_handler(store, supervisor, auth):
                     raise Problem(400, "invalid_input", "Fragments and encoded paths are unsupported")
                 parts = url.path.strip("/").split("/")
                 if url.query:
-                    if method != "GET" or len(parts) != 1 or parts[0] not in ("runs", "models", "deployments"):
+                    if method != "GET" or len(parts) != 1 or parts[0] not in ("runs", "models", "deployments", "model-evaluations"):
                         raise Problem(400, "invalid_input", "Query parameters unsupported on this route")
                     if len(url.query) > 2200:
                         raise Problem(400, "invalid_input", "Query too long")
@@ -85,6 +87,12 @@ def make_handler(store, supervisor, auth):
                     except ValueError:
                         raise Problem(400, "invalid_input", "Invalid pagination query") from None
                     query = dict(pairs)
+                    if parts == ["model-evaluations"]:
+                        if len(query) != len(pairs) or set(query) != {"model_version_id"}:
+                            raise Problem(400, "invalid_input", "Use exactly one model_version_id filter")
+                        result = evaluations.list(tenant, text_value(query["model_version_id"], "model_version_id", 80))
+                        self.respond(200, result)
+                        return
                     if len(query) != len(pairs) or set(query) - {"limit", "cursor"}:
                         raise Problem(400, "invalid_input", "Unknown or duplicate query fields")
                     limit = query.get("limit")
@@ -137,6 +145,17 @@ def make_handler(store, supervisor, auth):
             return read_artifact_body(self.rfile, self.connection, ASSET_BYTES)
 
         def route(self, method, parts, tenant):
+            if parts == ["model-evaluations"]:
+                if method == "GET":
+                    return 200, evaluations.list(tenant)
+                if method == "POST":
+                    keys = self.headers.get_all("Idempotency-Key", [])
+                    if len(keys) != 1:
+                        raise Problem(400, "invalid_input", "One Idempotency-Key required")
+                    result, created = evaluations.create(tenant, keys[0], self.body())
+                    return (202 if created else 200), result
+            if len(parts) == 2 and parts[0] == "model-evaluations" and method == "GET":
+                return 200, evaluations.get(tenant, parts[1])
             if parts == ['model-import-catalog'] and method == 'GET':
                 return 200, catalog()
             if parts == ['model-imports'] and method == 'POST':

@@ -100,3 +100,10 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 ## 受限预训练导入增量（2026-10-18）
 
 单一审查用户资产通过独立 ModelImport/ImportValidation 登记 origin=imported，模型互斥来源约束及离线备份迁移保持旧训练关联。独立 CPU 协议不加入可训练recipes，不创建训练或评估；权重授权未独立核实，下载再分发禁用。具体鉴权路由、字节准入、资源限制及本轮待完成验收见[契约与证据](pretrained-import.md)。
+
+
+## 导入模型独立评估增量（2026-10-18）
+
+已先完成独立契约评审，新增 evaluation-purpose val-only 数据集与独立 `model_evaluations` 队列/不可变终态结果。共享32项训练/评估预算和单 Worker，按全局创建顺序领取；评估在受限 CPU 子进程执行，超时与重启中断失败闭合。绑定实际模型/import/validation/hash、数据集/类别/原图与请求 RGB、固定推理/评估协议、代码及依赖版本、预测摘要。AP/AR 和单阈值 TP/FP/FN 语义分开，错误例有数量/响应字节上限。
+
+导入 ModelVersion 原有 `evaluation:null` / `not_evaluated` 是登记时事实，保持不可变；新的独立评估通过单独列表/详情关联，不能伪造训练 attempt 或将新结果写回旧 manifest。旧训练 train+val 及模型服务协议不变。当前是可信本机、小规模逻辑预算，不是生产多租户沙箱、完整 COCO benchmark 或外部独立审计。详见[独立评估契约](independent-evaluation-contract.md)。

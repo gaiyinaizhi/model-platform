@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "checked": "all64 actual published raw/RGB/label/request-RGB hashes; both prediction files; full metric/matching/diagnostic recomputation;80 source categories; original imported manifest unchanged; no training rows",
+  "images": 64,
+  "ground_truth": 457,
+  "predictions": 273,
+  "metrics": {
+    "map_50": 0.41460834340789027,
+    "map_50_95": 0.2747798977167655,
+    "ar_100": 0.288550124601401
+  },
+  "operating_point": {
+    "tp": 190,
+    "fp": 83,
+    "fn": 267,
+    "precision": 0.6959706959706959,
+    "recall": 0.41575492341356673
+  },
+  "prediction_sha256": "ef25f77939bfd3de12b1bd66443bc9547a5b199125d094ed8f8a2d2f414f0d25",
+  "result_sha256": "884d91b5c9091bafeed8d9d7011ee72219b0c6548c3ef58e20877e435c44a1fe",
+  "execution_code_sha256": "ba40e485af5ee0237dd055ce94c5084f97f85a0c54aece699ef13695d2e0786c",
+  "pair_ids": [
+    "mev_09c1cd4bd3a44c9ab55af0f174451db9",
+    "mev_550df211bd0648d9b452e92912532f55"
+  ],
+  "original_manifest_bytes_unchanged": true,
+  "counts": {
+    "runs": 0,
+    "attempts": 0,
+    "evaluations": 0,
+    "model_evaluations": 2,
+    "deployments": 0,
+    "dataset_versions": 1
+  }
+}

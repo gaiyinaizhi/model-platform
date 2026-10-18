@@ -12,6 +12,8 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 
 ## 已实现
 
+- 新增[导入模型独立评估](docs/independent-evaluation-contract.md)：evaluation-purpose val-only 不可变数据集、独立租户评估队列与终态记录、固定服务协议下 AP50/AP50:95/AR@100 和 TP/FP/FN；不创建训练记录、不改写导入模型登记血缘。真实固定64张 COCO val2017 子集验收与限制见专项证据；不是官方 COCO benchmark
+
 - 新增[受限预训练 YOLOX-Nano 导入](docs/pretrained-import.md)：精确用户资产hash、独立验证/登记及CPU serving，不产生训练或AP；权重许可未独立核实、禁止下载再分发，完整验收状态见专项文档
 
 - 新增[自定义 YOLO 数据集导入/版本](docs/dataset-imports.md)：受限 ZIP、逐文件图像/框/跨 split 校验、显式负样本策略、租户隔离、不可变复制快照；可通过[版本绑定多类别训练](docs/dataset-training.md)执行受控 CPU 配方
@@ -79,13 +81,14 @@ API / Worker 通过各自终端的 Ctrl+C 停止。API 正常退出会终结自�
 所有业务及健康路由均要求 `Authorization: Bearer <token>`。token 固定绑定 tenant，请求体不能选择 tenant；越权对象返回 404。请求 JSON 不允许未知字段、重复字段、非有限数值或任意外部 URL、文件路径、可执行配方。完整路由和错误码见 [架构契约](docs/architecture.md#最小-apiv1)。
 
 - 训练：`POST /runs` 携带 `Idempotency-Key`；`GET /runs/{id}` 查询；失败后 `POST /runs/{id}/retry` 携带 `{}` 显式重试
+- 独立评估：`POST /model-evaluations`（必需幂等键）、`GET /model-evaluations`（可选 model_version_id 筛选）及 `GET /model-evaluations/{id}`；由现有 Worker 独立子进程执行，详情见专项契约
 - 登记：`GET /models`、`GET /models/{id}` 查询不可变技术记录、评估和摘要；[ONNX 交付](docs/edge-delivery.md)提供鉴权部署产物下载（非训练 checkpoint）
 - 配方发现：鉴权 `GET /recipes` 返回任务/数据/预算/输入输出契约与质量警告；声明能力不等于运行就绪
 - 部署：`POST /deployments` 携带 `model_version_id`，可选 `Idempotency-Key` 支持安全重试；查询 deployment 的 `desired`、`observed` 和 `ready`
 - 预测：`POST /deployments/{id}/predict` 携带 `features`（分类为二维数值数组，检测为单张受限RGB像素对象）；停止：`POST /deployments/{id}/stop` 携带 `{}`
 - `GET /health` 只表示 API 可用，不保证独立 Worker 存活；集合无 query 保持最新100个 ID；`?limit=1..100` / `?cursor=...` 显式开启稳定历史分页，见[业务接入契约](docs/integration-api.md)
 
-除[固定预训练ONNX上传](docs/pretrained-import.md)的3,659,407字节及[数据集 ZIP 专用路由](docs/dataset-imports.md)的 32 MiB 上传预算外，传输预算为每请求 2 MiB（二分类规范化 JSON 仍限 1 MiB）、每 tenant 每分钟 120 请求、API 最多 16 个并发连接；全局最多 32 个排队/运行任务和 4 个 `desired=running` 部署。失败部署仍占预算，显式 stop 可释放。二分类训练和留出合计不超过 1,000 行、每个集合至少 4 行且含两类、最多 16 特征、200 epoch、训练循环 60 秒；在线预测最多 128 行。提交数据须声明合法使用，并提供不与训练样本特征重叠的留出集；这是调用方提供的留出数据，不是外部独立审计。数字配方单独限制训练≤3823、评估≤1797、固定64维/10类、≤60 epoch、训练循环120秒；需官方来源及许可摘要声明，完整演示核验官方字节校验和。数字配方保留官方记录中可能重复的量化特征并记录重合审计，不改变二分类的跨集合拒绝规则。
+除[固定预训练ONNX上传](docs/pretrained-import.md)的3,659,407字节及[数据集 ZIP 专用路由](docs/dataset-imports.md)的 32 MiB 上传预算外，传输预算为每请求 2 MiB（二分类规范化 JSON 仍限 1 MiB）、每 tenant 每分钟 120 请求、API 最多 16 个并发连接；全局最多 32 个训练或独立评估排队/运行任务和 4 个 `desired=running` 部署。失败部署仍占预算，显式 stop 可释放。二分类训练和留出合计不超过 1,000 行、每个集合至少 4 行且含两类、最多 16 特征、200 epoch、训练循环 60 秒；在线预测最多 128 行。提交数据须声明合法使用，并提供不与训练样本特征重叠的留出集；这是调用方提供的留出数据，不是外部独立审计。数字配方单独限制训练≤3823、评估≤1797、固定64维/10类、≤60 epoch、训练循环120秒；需官方来源及许可摘要声明，完整演示核验官方字节校验和。数字配方保留官方记录中可能重复的量化特征并记录重合审计，不改变二分类的跨集合拒绝规则。
 
 ## 验证
 
