@@ -47,7 +47,7 @@ run 固定输入快照、摘要、配方、代码源码摘要、Python/平台环
 | POST /deployments/{id}/predict | features 数组；实际 ready 才转发，返回版本、摘要、概率和分类 |
 | POST /deployments/{id}/stop | 先拒绝新调用，再终结进程；失败如实返回 503，成功返回 observed=stopped |
 
-错误为 JSON `{error: {code, message}}`：400 契约错误、401 鉴权、404 无权或不存在、409 冲突、413 超大输入、429 预算、501 取消不支持、503 未就绪/运行失败。未知字段被拒绝。已有鉴权 ONNX artifact 下载与交付清单，详见 [edge-delivery.md](edge-delivery.md)；无 artifact 上传、任意模型导入、任意执行、任意外部访问或真实业务接口。
+错误为 JSON `{error: {code, message}}`：400 契约错误、401 鉴权、404 无权或不存在、409 冲突、413 超大输入、429 预算、501 取消不支持、503 未就绪/运行失败。未知字段被拒绝。已有鉴权 ONNX artifact 下载与交付清单，详见 [edge-delivery.md](edge-delivery.md)；另有精确hash的[预训练导入上传](pretrained-import.md)；无任意模型导入、任意执行、任意外部访问或真实业务接口。
 
 ## 后续能力
 
@@ -96,3 +96,7 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 `GET /models/{id}/delivery` 返回版本化交付协议，`GET /models/{id}/artifact` 返回完整、已校验摘要与长度的登记 ONNX；复用租户鉴权，跨租户 404。下载前生成有并发/字节预算的私有快照，不接受路径、范围、转换参数。该产物不是训练恢复 checkpoint；TensorRT/RKNN 与生产审批未实现。[完整契约](edge-delivery.md)。
 
 `GET /worker-readiness` 读取实际 Worker 写入的心跳、启动依赖探测与当前租户队列计数，不在 API 进程导入 ML 库，不暴露其他租户任务。心跳不等于数据可用或训练必然成功；进程崩溃有最多 15 秒检测窗口。[独立部署与排障](cpu-worker-deployment.md)。
+
+## 受限预训练导入增量（2026-10-18）
+
+单一审查用户资产通过独立 ModelImport/ImportValidation 登记 origin=imported，模型互斥来源约束及离线备份迁移保持旧训练关联。独立 CPU 协议不加入可训练recipes，不创建训练或评估；权重授权未独立核实，下载再分发禁用。具体鉴权路由、字节准入、资源限制及本轮待完成验收见[契约与证据](pretrained-import.md)。

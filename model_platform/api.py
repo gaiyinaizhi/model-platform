@@ -56,6 +56,8 @@ class Auth:
 def make_handler(store, supervisor, auth):
     datasets = DatasetStore(store.runtime)
     delivery = Delivery(store)
+    from .model_imports import ModelImportStore, catalog, ASSET_BYTES
+    imports = ModelImportStore(store)
 
     class Handler(JsonHandler):
         def do_GET(self):
@@ -123,7 +125,35 @@ def make_handler(store, supervisor, auth):
                 raise Problem(400, "invalid_archive_body", "Incomplete ZIP upload; retry with the same import ID") from None
             return raw
 
+        def import_artifact_body(self):
+            if self.headers.get('Transfer-Encoding') or self.headers.get('Content-Encoding'):
+                raise Problem(400, 'invalid_input', 'Chunked or compressed uploads are unsupported')
+            lengths = self.headers.get_all('Content-Length', [])
+            if len(lengths) != 1 or lengths[0] != str(ASSET_BYTES):
+                raise Problem(413, 'body_limit', 'Exact catalog artifact Content-Length required')
+            if len(self.headers.get_all('Content-Type', [])) != 1 or self.headers.get_content_type() != 'application/octet-stream':
+                raise Problem(400, 'invalid_input', 'application/octet-stream required')
+            from .model_imports import read_artifact_body
+            return read_artifact_body(self.rfile, self.connection, ASSET_BYTES)
+
         def route(self, method, parts, tenant):
+            if parts == ['model-import-catalog'] and method == 'GET':
+                return 200, catalog()
+            if parts == ['model-imports'] and method == 'POST':
+                keys = self.headers.get_all('Idempotency-Key', [])
+                if len(keys) != 1:
+                    raise Problem(400, 'invalid_input', 'One Idempotency-Key required')
+                result, created = imports.create(tenant, keys[0], self.body())
+                return (201 if created else 200), result
+            if len(parts) == 2 and parts[0] == 'model-imports' and method == 'GET':
+                return 200, imports.get_import(tenant, parts[1])
+            if len(parts) == 3 and parts[0] == 'model-imports' and method == 'POST':
+                if parts[2] == 'artifact':
+                    return 200, imports.upload(tenant, parts[1], self.import_artifact_body)
+                if parts[2] == 'register':
+                    object_fields(self.body(), ())
+                    result, created = imports.register(tenant, parts[1])
+                    return (201 if created else 200), result
             if method == "GET" and parts == ["worker-readiness"]:
                 from .worker_readiness import public_report
                 return 200, public_report(store, tenant)
@@ -237,6 +267,8 @@ def make_handler(store, supervisor, auth):
 def run_api(runtime, port):
     with runtime.lock("api"):
         store = Store(runtime)
+        from .model_imports import ModelImportStore
+        ModelImportStore(store).recover()
         auth = Auth(runtime.home / "credentials.json")
         supervisor = Supervisor(store)
         server = None

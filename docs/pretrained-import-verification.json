@@ -1,0 +1,316 @@
+{
+  "verified_date_utc": "2026-10-18",
+  "fresh_reconstruction": true,
+  "protocol": "yolox-nano-coco-onnx/v1",
+  "source_commit": "6ddff4824372906469a7fae2dc3206c7aa4bbaee",
+  "python": "3.12.14",
+  "validation": {
+    "ir_version": 6,
+    "opset": 11,
+    "nodes": 369,
+    "initializers": 236,
+    "initializer_elements": 904481,
+    "status": "validated",
+    "protocol": "yolox-nano-coco-onnx/v1",
+    "sha256": "c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d",
+    "bytes": 3659407,
+    "provider": "CPUExecutionProvider",
+    "raw_output_shape": [
+      1,
+      3549,
+      85
+    ],
+    "finite_output": true,
+    "numpy_version": "2.3.5",
+    "onnx_version": "1.20.1",
+    "onnxruntime_version": "1.23.2",
+    "opencv_version": "4.13.0",
+    "pipeline_probe": true,
+    "label_table_sha256": "5655e1a2c432e4cbf3f7417f6d0aa90d42ea03ec0880951aeba2b5fcbb3afc9d",
+    "child_wall_seconds": 0.2149541449998651,
+    "peak_rss_bytes": 138792960,
+    "limits": {
+      "wall_seconds": 30,
+      "cpu_seconds": 20,
+      "address_space_bytes": 2147483648
+    },
+    "publisher_authenticated": false,
+    "local_evaluation_status": "not_evaluated",
+    "wall_seconds": 0.29038704000004145
+  },
+  "source_reference_files": [
+    {
+      "name": "coco_classes.py",
+      "sha256": "b38193c481a73f1f674cedab9e551b15b39b1a7aaed3e09e16505362cc54ad51"
+    },
+    {
+      "name": "data_augment.py",
+      "sha256": "f99b0b1568dafde0acd99f0a1e27a33644885349834d55a9dc632fe691ee352d"
+    },
+    {
+      "name": "demo_utils.py",
+      "sha256": "e1d6e1d263691ac15fdaa4f891efa83707da4af0fd895be122459105df3ee601"
+    }
+  ],
+  "tests": {
+    "command": "MP_PRETRAINED_YOLOX_ASSET=<private-asset> MP_YOLOX_REFERENCE_DIR=<pinned-reference-directory> MP_YOLOX_PHOTO_DIR=<authorized-photo-directory> .venv-pretrained/bin/python -m unittest discover -s tests -p test_pretrained_yolox.py -v",
+    "passed": 12,
+    "skipped": 0,
+    "duration_seconds": 1.665,
+    "pixel_max_abs_diff": 0,
+    "decode_max_abs_diff": 0,
+    "nms_records_exact": true,
+    "actual_photos": 12,
+    "reference_detections": 28
+  },
+  "photos": [
+    {
+      "id": "001083f05db4352b",
+      "sha256": "801fcb40f503713648b3762e40e57a407bb0cb3ced33cf9715ba6fdcba20452c",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        240,
+        384
+      ],
+      "reference_detections": 2,
+      "adapter_detections": 2,
+      "classes": [
+        "car",
+        "truck"
+      ],
+      "inference_seconds": 0.02009646199985582
+    },
+    {
+      "id": "001a794d1865ee47",
+      "sha256": "ef108c37f010f2864eaa4b1935533d88dd5d183cd7f2677a0728d3b3fee62c46",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        230,
+        384
+      ],
+      "reference_detections": 1,
+      "adapter_detections": 1,
+      "classes": [
+        "car"
+      ],
+      "inference_seconds": 0.018519434000154433
+    },
+    {
+      "id": "001a809ad40a2f84",
+      "sha256": "047fe7c5eda9db19d5e7763a88bd4a2c1ae623264193011a77518d0656938109",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        288,
+        384
+      ],
+      "reference_detections": 4,
+      "adapter_detections": 4,
+      "classes": [
+        "car",
+        "person",
+        "person",
+        "person"
+      ],
+      "inference_seconds": 0.01967762100002801
+    },
+    {
+      "id": "00230c216711fceb",
+      "sha256": "9f3d70d0cb7052c3a25eb6b37df19ebcee4226c9a66cfee3a6bd479db3580bbb",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        255,
+        384
+      ],
+      "reference_detections": 1,
+      "adapter_detections": 1,
+      "classes": [
+        "car"
+      ],
+      "inference_seconds": 0.02024517600011677
+    },
+    {
+      "id": "013b99371484d3d5",
+      "sha256": "f40ddc34b8f5dfde1122038d6b506d92268a43391cc52cd0a783bb01a79b1b74",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        288,
+        384
+      ],
+      "reference_detections": 2,
+      "adapter_detections": 2,
+      "classes": [
+        "bus",
+        "person"
+      ],
+      "inference_seconds": 0.01864641500014841
+    },
+    {
+      "id": "02717d30304f4849",
+      "sha256": "5907e079d88f1e06b4db515767baa65fae2c00ee81811da4db2eb9f230da25a0",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        288,
+        384
+      ],
+      "reference_detections": 10,
+      "adapter_detections": 10,
+      "classes": [
+        "bus",
+        "person",
+        "person",
+        "person",
+        "person",
+        "person",
+        "person",
+        "person",
+        "person",
+        "person"
+      ],
+      "inference_seconds": 0.018920458999900802
+    },
+    {
+      "id": "04c9d21d307621e7",
+      "sha256": "1b38edfccec5181cc2096f849ed6034a12421b4f2a1807a7fdf23b67a1a0fff6",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        256,
+        384
+      ],
+      "reference_detections": 1,
+      "adapter_detections": 1,
+      "classes": [
+        "bus"
+      ],
+      "inference_seconds": 0.018618153000034
+    },
+    {
+      "id": "0b2167c3a726f68a",
+      "sha256": "4700b1cc478eb3c39aa784f46d74a21da69f89c4c2c2b78193124d93560ba7de",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        288,
+        384
+      ],
+      "reference_detections": 2,
+      "adapter_detections": 2,
+      "classes": [
+        "truck",
+        "person"
+      ],
+      "inference_seconds": 0.020179166999923837
+    },
+    {
+      "id": "02c6ba6f361a6ff2",
+      "sha256": "04d64c4b92bd887e61b3e26f6ceca2aae6c32366e3b3703a341d69e06c8025c6",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        279,
+        384
+      ],
+      "reference_detections": 1,
+      "adapter_detections": 1,
+      "classes": [
+        "truck"
+      ],
+      "inference_seconds": 0.01977549799994449
+    },
+    {
+      "id": "22ed2f99582e1391",
+      "sha256": "b47bcad96b2305eaac4b4eda57da3731689dcf2ab66caa62eaf0ecd312e68a41",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        288,
+        384
+      ],
+      "reference_detections": 1,
+      "adapter_detections": 1,
+      "classes": [
+        "truck"
+      ],
+      "inference_seconds": 0.01986990099999275
+    },
+    {
+      "id": "24a0a01fcc6dd169",
+      "sha256": "bca857a6036af2cd4c87361770cc5baef7516be27cb503658d46fcfe0c34020a",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        215,
+        384
+      ],
+      "reference_detections": 1,
+      "adapter_detections": 1,
+      "classes": [
+        "truck"
+      ],
+      "inference_seconds": 0.018449368000119648
+    },
+    {
+      "id": "0ec0403ce2dee348",
+      "sha256": "9bcab6f402b50028aeffa32b8791c48d2b3b2f3f50067a06cfb362823f3a7415",
+      "historical_hash_match": true,
+      "request_shape_hw": [
+        167,
+        384
+      ],
+      "reference_detections": 2,
+      "adapter_detections": 2,
+      "classes": [
+        "bus",
+        "person"
+      ],
+      "inference_seconds": 0.01791745500008801
+    }
+  ],
+  "photo_sources": "Public Open Images photos; historical source hashes and attribution recovered from prior validation evidence. Public attribution: https://github.com/gaiyinaizhi/vision-lab/blob/4bf19a68744d2fc00aac70eb6eae0ea02e0baf40/docs/verified-model-delivery.md",
+  "adapter": "Before testing, photos explicitly resized OpenCV INTER_LINEAR to max384. Runtime outputs independently clip coordinates, drop degenerate boxes and cap100 after upstream NMS.",
+  "limitations": [
+    "No local AP/recognition-quality evaluation",
+    "Reviewed user bytes with release metadata correlation, not authenticated publisher digest",
+    "Linux rlimit address-space/CPU and wall timeout do not constitute production multitenant sandbox",
+    "No model weights or photos in source checkpoint"
+  ],
+  "regression": {
+    "full_optional_stack": {
+      "command": "MP_PRETRAINED_YOLOX_ASSET=<private-asset> MP_YOLOX_REFERENCE_DIR=<pinned-reference-directory> MP_YOLOX_PHOTO_DIR=<authorized-photo-directory> python -m unittest discover -s tests -v",
+      "run": 297,
+      "passed": 296,
+      "skipped": 1,
+      "seconds": 114.644,
+      "skip_reason": "Optional official dataset cache unavailable; actual imported Nano and upstream/photo parity ran"
+    },
+    "actual_import_lifecycle": {
+      "passed": 3,
+      "seconds": 3.068,
+      "coverage": [
+        "upload/validation/registration",
+        "deployment readiness/predict/restart/stop/replay",
+        "tenant isolation/no fake evaluation/no download",
+        "corruption never ready"
+      ]
+    },
+    "fixture_fix": "Existing ZIP helper used current timestamps; deterministic timestamps preserve exact replay bytes and requested compression. Added explicit regression test.",
+    "host_without_onnx_torch": {
+      "command": "python -m unittest discover -s tests -v",
+      "run": 297,
+      "passed": 246,
+      "skipped": 51,
+      "seconds": 38.796,
+      "skip_reason": "Optional image/ONNX/ML dependencies and asset inputs absent",
+      "environment": "Host Python includes NumPy; not a dependency-free standard-library environment"
+    },
+    "stdlib": {
+      "command": "python -m venv <isolated-venv>; <isolated-venv>/bin/python -m unittest discover -s tests -v",
+      "run": 297,
+      "passed": 205,
+      "skipped": 92,
+      "seconds": 38.549,
+      "environment": "Fresh venv, include-system-site-packages=false; numpy/torch/onnx/onnxruntime/cv2 unavailable",
+      "skip_reason": "Optional dependencies, official cache and private asset inputs absent"
+    }
+  },
+  "independent_review": {
+    "backend": "approved for trusted-local scope; migration, file/transport bounds, parser, runtime, identity and compatibility checked",
+    "frontend": "approved after explicit rejected-import recovery fix",
+    "browser": "pending"
+  }
+}

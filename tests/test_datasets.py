@@ -47,8 +47,22 @@ def archive(files=None, compression=zipfile.ZIP_STORED, prefix=''):
     output = io.BytesIO()
     with zipfile.ZipFile(output, 'w', compression=compression) as zipout:
         for name, content in (fixture() if files is None else files).items():
-            zipout.writestr(prefix + name, content)
+            # Replays compare ZIP bytes, so fixture timestamps must not depend on
+            # crossing a two-second DOS timestamp boundary during a test.
+            info = zipfile.ZipInfo(prefix + name, date_time=(1980, 1, 1, 0, 0, 0))
+            zipout.writestr(info, content, compress_type=compression)
     return output.getvalue()
+
+
+class ArchiveFixtureTests(unittest.TestCase):
+    def test_archive_bytes_and_compression_are_deterministic(self):
+        for compression in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+            raw = archive(compression=compression)
+            self.assertEqual(raw, archive(compression=compression))
+            with zipfile.ZipFile(io.BytesIO(raw)) as zipped:
+                for info in zipped.infolist():
+                    self.assertEqual(info.date_time, (1980, 1, 1, 0, 0, 0))
+                    self.assertEqual(info.compress_type, compression)
 
 
 @unittest.skipUnless(OPTIONAL, 'Optional Pillow/PyYAML dataset dependencies are not installed')
