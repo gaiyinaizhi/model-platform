@@ -53,3 +53,10 @@ Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，�
 ## 导入模型独立评估切片（2026-10-18）
 
 新增[独立评估契约与实现](independent-evaluation-contract.md)：保留训练型 train+val 数据集规则，另增 evaluation-purpose val-only；对已登记受限预训练模型运行固定服务协议的独立队列评估，记录不可变模型/数据/类别/代码/环境/预测摘要、AP50/AP50:95/AR@100 及可复核 TP/FP/FN。真实固定64张非 crowd COCO val2017 子集不是完整官方评测，不声明生产质量、设备认证或权重许可认证。失败终态须新幂等键明确再评估；未实现取消、自动重试或生产发布门槛。
+
+
+## 独立评估只读比较（2026-10-18）
+
+新增鉴权 `GET /model-evaluation-comparisons?evaluation_a_id=...&evaluation_b_id=...`，只比较同租户两条不同 ID 的成功独立评估，不要求模型 ID 不同。两侧完整性校验后严格比较数据版本、内容、样本顺序、类别映射、协议、提交和执行代码/Python/平台/依赖；任何差异返回明确不兼容原因和空差值。兼容时返回 AP50/AP50:95/AR@100、precision/recall、TP/FP/FN 的 B−A 差值，保留 null。
+
+只读请求不初始化数据集 schema、不写审计/结果/模型、不运行推理；既有训练比较、导入登记血缘、serving 和部署限制不变。详见[已评审契约](evaluation-comparison-contract.md)及[验收记录](evaluation-comparison-verification.md)。现有单一权重的重复记录仅说明固定条件下的重复性，不代表多模型排名、生产质量门槛或官方 COCO benchmark。

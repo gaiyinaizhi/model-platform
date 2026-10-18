@@ -107,3 +107,10 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 已先完成独立契约评审，新增 evaluation-purpose val-only 数据集与独立 `model_evaluations` 队列/不可变终态结果。共享32项训练/评估预算和单 Worker，按全局创建顺序领取；评估在受限 CPU 子进程执行，超时与重启中断失败闭合。绑定实际模型/import/validation/hash、数据集/类别/原图与请求 RGB、固定推理/评估协议、代码及依赖版本、预测摘要。AP/AR 和单阈值 TP/FP/FN 语义分开，错误例有数量/响应字节上限。
 
 导入 ModelVersion 原有 `evaluation:null` / `not_evaluated` 是登记时事实，保持不可变；新的独立评估通过单独列表/详情关联，不能伪造训练 attempt 或将新结果写回旧 manifest。旧训练 train+val 及模型服务协议不变。当前是可信本机、小规模逻辑预算，不是生产多租户沙箱、完整 COCO benchmark 或外部独立审计。详见[独立评估契约](independent-evaluation-contract.md)。
+
+
+## 独立评估只读比较（2026-10-18）
+
+新增鉴权 `GET /model-evaluation-comparisons?evaluation_a_id=...&evaluation_b_id=...`，只比较同租户两条不同 ID 的成功独立评估，不要求模型 ID 不同。两侧完整性校验后严格比较数据版本、内容、样本顺序、类别映射、协议、提交和执行代码/Python/平台/依赖；任何差异返回明确不兼容原因和空差值。兼容时返回 AP50/AP50:95/AR@100、precision/recall、TP/FP/FN 的 B−A 差值，保留 null。
+
+只读请求不初始化数据集 schema、不写审计/结果/模型、不运行推理；既有训练比较、导入登记血缘、serving 和部署限制不变。详见[已评审契约](evaluation-comparison-contract.md)及[验收记录](evaluation-comparison-verification.md)。现有单一权重的重复记录仅说明固定条件下的重复性，不代表多模型排名、生产质量门槛或官方 COCO benchmark。

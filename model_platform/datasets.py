@@ -49,13 +49,17 @@ def identifier(prefix):
 
 
 class DatasetStore:
-    def __init__(self, runtime):
+    def __init__(self, runtime, *, read_only=False):
         self.runtime = runtime
         self.root = runtime.home / "datasets"
+        self.operation_lock = threading.Lock()
+        # Existing immutable-version reads must not initialize schema or acquire
+        # a write transaction (notably read-only evaluation comparisons).
+        if read_only:
+            return
         self.root.mkdir(mode=0o700, exist_ok=True)
         for directory in ("staging", "versions", "temporary"):
             (self.root / directory).mkdir(mode=0o700, exist_ok=True)
-        self.operation_lock = threading.Lock()
         with runtime.connection() as db:
             db.executescript(SCHEMA)
             # Additive migration preserves old request digests and manifest bytes.
