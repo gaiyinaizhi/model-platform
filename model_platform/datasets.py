@@ -9,8 +9,10 @@ import threading
 import uuid
 
 from .common import Problem, digest, encode, now, object_fields, text_value
-from .dataset_validation import (Validation, MAX_ARCHIVE_BYTES, dependencies, sha256,
+from .dataset_validation import (Validation, MAX_ARCHIVE_BYTES, MAX_FILE_BYTES,
+                                 MAX_UNPACKED_BYTES, MAX_ENTRIES, dependencies, sha256,
                                  safe_path, validate_source, verify_source_samples)
+from .safe_files import directory as safe_directory, read_at
 
 MAX_DATASET_BYTES = 512 * 1024 * 1024
 MAX_IMPORTS = 256
@@ -211,29 +213,61 @@ class DatasetStore:
     @staticmethod
     def verify_snapshot(path, manifest, content_hash):
         try:
-            if digest(manifest) != content_hash or not path.is_dir() or path.is_symlink():
+            if digest(manifest) != content_hash:
                 raise ValueError("Manifest mismatch")
+            if not isinstance(manifest["files"], list) or not 1 <= len(manifest["files"]) <= MAX_ENTRIES:
+                raise ValueError("Manifest file budget")
             if any(not isinstance(entry["path"], str) or not safe_path(entry["path"])
                    or entry["path"].endswith("/") for entry in manifest["files"]):
                 raise ValueError("Unsafe manifest path")
-            expected = {f["path"] for f in manifest["files"]}
+            expected = {f["path"]: f for f in manifest["files"]}
             if len(expected) != len(manifest["files"]):
                 raise ValueError("Duplicate manifest path")
+            if (any(type(entry['bytes']) is not int or not 0 <= entry['bytes'] <= MAX_FILE_BYTES
+                    for entry in expected.values())
+                    or sum(entry['bytes'] for entry in expected.values()) > MAX_UNPACKED_BYTES):
+                raise ValueError("Snapshot byte budget")
             actual = set()
-            for directory, dirs, files in os.walk(path, followlinks=False):
-                if any((Path(directory) / name).is_symlink() for name in dirs):
-                    raise ValueError("Symbolic link")
-                for name in files:
-                    item = Path(directory) / name
-                    if not stat.S_ISREG(item.lstat().st_mode):
-                        raise ValueError("Not regular")
-                    actual.add(item.relative_to(path).as_posix())
-            if actual != expected:
+            visited = 0
+            expected_directories = {parent.as_posix() for name in expected
+                                    for parent in Path(name).parents if parent.as_posix() != '.'}
+
+            def walk(fd, prefix):
+                nonlocal visited
+                before = os.fstat(fd)
+                with os.scandir(fd) as entries:
+                    for item in entries:
+                        visited += 1
+                        if visited > len(expected) + len(expected_directories):
+                            raise ValueError("Snapshot entry budget")
+                        relative = prefix + item.name
+                        if not safe_path(relative):
+                            raise ValueError("Unsafe snapshot path")
+                        if item.is_dir(follow_symlinks=False):
+                            if relative not in expected_directories:
+                                raise ValueError("Unexpected snapshot directory")
+                            child = os.open(item.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+                            try:
+                                walk(child, relative + '/')
+                            finally:
+                                os.close(child)
+                        else:
+                            entry = expected.get(relative)
+                            if entry is None or not item.is_file(follow_symlinks=False):
+                                raise ValueError("Unexpected or nonregular snapshot file")
+                            raw = read_at(fd, item.name, entry['bytes'])
+                            if len(raw) != entry['bytes'] or sha256(raw) != entry['sha256']:
+                                raise ValueError("File hash changed")
+                            actual.add(relative)
+                after = os.fstat(fd)
+                if any(getattr(before, key) != getattr(after, key)
+                       for key in ('st_dev', 'st_ino', 'st_mtime_ns', 'st_ctime_ns')):
+                    raise ValueError("Snapshot changed during read")
+
+            with safe_directory(path) as root:
+                walk(root, '')
+            if actual != set(expected):
                 raise ValueError("File set changed")
-            for entry in manifest["files"]:
-                item = path / entry["path"]
-                if item.stat().st_size != entry["bytes"] or sha256(item.read_bytes()) != entry["sha256"]:
-                    raise ValueError("File hash changed")
             if manifest.get("source") is not None:
                 if manifest.get("purpose") != "evaluation":
                     raise ValueError("Source purpose mismatch")

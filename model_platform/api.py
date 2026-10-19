@@ -77,6 +77,33 @@ def make_handler(store, supervisor, auth):
                 if url.fragment or "%" in url.path:
                     raise Problem(400, "invalid_input", "Fragments and encoded paths are unsupported")
                 parts = url.path.strip("/").split("/")
+                if 'error-images' in url.path.split('/'):
+                    if (method != 'GET' or url.scheme or url.netloc or '?' in self.path
+                            or self.requestline.split()[1] != self.path
+                            or len(parts) != 4 or parts[0] != 'model-evaluations'
+                            or parts[2] != 'error-images'
+                            or self.path != '/' + '/'.join(parts)
+                            or any(self.headers.get_all(key, []) for key in
+                                   ('Range', 'If-Range', 'Transfer-Encoding', 'Content-Encoding'))
+                            or self.headers.get_all('Content-Length', []) not in ([], ['0'])):
+                        raise Problem(400, 'invalid_input', 'Use the exact body-free error-image route without query or range')
+                    from .evaluation_images import preview
+                    content = preview(evaluations, tenant, parts[1], parts[3])
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'image/png')
+                    self.send_header('Content-Length', str(len(content)))
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('X-Content-Type-Options', 'nosniff')
+                    self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.close_connection = True
+                    try:
+                        self.wfile.write(content)
+                    except OSError:
+                        # A binary success can never be followed by JSON.
+                        pass
+                    return
                 if url.query:
                     if method != "GET" or len(parts) != 1 or parts[0] not in ("runs", "models", "deployments", "model-evaluations", "model-evaluation-comparisons"):
                         raise Problem(400, "invalid_input", "Query parameters unsupported on this route")

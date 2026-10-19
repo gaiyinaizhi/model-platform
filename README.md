@@ -128,3 +128,7 @@ docs/                架构契约、路线图、验收记录
 ```
 
 贡献前阅读 [AGENTS.md](AGENTS.md)、[架构](docs/architecture.md) 和 [路线图](docs/roadmap.md)。不要向 Git 提交训练数据、权重、数据库、日志、密钥或可用凭据；`.gitignore` 不能替代提交前检查。
+
+## Optional diagnostic image review
+
+[Error-image previews](docs/error-image-preview-contract.md) add authenticated, read-only, metadata-free limited PNGs for the existing bounded independent-evaluation wrong examples. Raw image browsing, external fetch and new inference are excluded. [Verification and local publication boundary](docs/error-image-preview-verification.md) distinguish synthetic acceptance from retained-data/model-quality evidence.
