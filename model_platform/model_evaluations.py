@@ -191,7 +191,7 @@ class ModelEvaluationStore:
                 or manifest.get('local_evaluation_status') != 'not_evaluated'):
             raise Problem(409, 'import_integrity', 'Imported model identity does not match the reviewed protocol')
         verify_artifact(self.runtime, manifest['artifact_id'], manifest['artifact_sha256'])
-        dataset = DatasetStore(self.runtime).get_version(tenant, body['dataset_version_id'])
+        dataset = DatasetStore(self.runtime, read_only=True).get_version(tenant, body['dataset_version_id'])
         dm = dataset['manifest']
         samples = dm['samples']
         if (dm.get('purpose', 'training') != 'evaluation'
@@ -279,7 +279,7 @@ class ModelEvaluationStore:
                     self.store._owned(db, 'models', row['tenant'], row['model_version_id'])
                     self.store._owned(db, 'dataset_versions', row['tenant'], row['dataset_version_id'])
             return binding
-        except (Problem, ValueError, TypeError, KeyError, OSError):
+        except (Problem, ValueError, TypeError, KeyError, AttributeError, OSError):
             raise Problem(409, 'evaluation_integrity', 'Evaluation identity or evidence has changed') from None
 
     @staticmethod
@@ -290,6 +290,10 @@ class ModelEvaluationStore:
 
     def get(self, tenant, item_id):
         row = self._row(tenant, item_id)
+        return self.detail(row)
+
+    def detail(self, row):
+        """Verify a captured row without mixing its status and result snapshots."""
         binding = self.verify_binding(row)
         value = dict(self.summary(row), binding=binding, result_sha256=None)
         parsed, result_hash = self.verified_result(row, binding)
@@ -320,7 +324,7 @@ class ModelEvaluationStore:
             if hashlib.sha256(raw).hexdigest() != result['prediction_sha256']:
                 raise ValueError('prediction evidence')
             return parsed, result['result_sha256']
-        except (ValueError, TypeError, KeyError, OSError):
+        except (ValueError, TypeError, KeyError, AttributeError, OSError):
             raise Problem(409, 'evaluation_integrity', 'Evaluation result or prediction evidence has changed') from None
 
     def list(self, tenant, model_version_id=None):

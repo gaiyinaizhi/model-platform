@@ -12,6 +12,8 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 
 ## 已实现
 
+- 新增[独立评估记录只读比较](docs/evaluation-comparison-contract.md)：两条成功且完整性校验通过的记录，严格核对数据/类别/协议/代码/依赖/环境；兼容时返回 B−A 指标差值，不兼容时逐项说明原因。允许同一模型重复评估，不创建推理任务或生产发布许可
+
 - 新增[导入模型独立评估](docs/independent-evaluation-contract.md)：evaluation-purpose val-only 不可变数据集、独立租户评估队列与终态记录、固定服务协议下 AP50/AP50:95/AR@100 和 TP/FP/FN；不创建训练记录、不改写导入模型登记血缘。真实固定64张 COCO val2017 子集验收与限制见专项证据；不是官方 COCO benchmark
 
 - 新增[受限预训练 YOLOX-Nano 导入](docs/pretrained-import.md)：精确用户资产hash、独立验证/登记及CPU serving，不产生训练或AP；权重许可未独立核实、禁止下载再分发，完整验收状态见专项文档
