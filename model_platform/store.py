@@ -245,13 +245,27 @@ class Store:
                 "high": high, "last": [last["created_at"], last["id"]]})
         return {"ids": [row["id"] for row in rows[:limit]], "limit": limit, "next_cursor": next_cursor}
 
-    def retry(self, tenant, run_id):
+    def retry(self, tenant, run_id, expected_attempt_id=None):
+        """Optionally bind enqueue to the exact failed execution the caller saw."""
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = self._owned(db, "runs", tenant, run_id)
             count = db.execute("SELECT count(*) FROM attempts WHERE run_id=?", (run_id,)).fetchone()[0]
             if row["status"] != "failed" or count >= MAX_ATTEMPTS:
                 raise Problem(409, "retry_conflict", "Only failed runs below the attempt limit can retry")
+            if expected_attempt_id is not None:
+                attempts = db.execute(
+                    "SELECT id,number,status FROM attempts WHERE run_id=? ORDER BY number", (run_id,)).fetchall()
+                if (row["model_version_id"] is not None or not attempts
+                        or attempts[-1]["id"] != expected_attempt_id
+                        or any(type(attempt["number"]) is not int or attempt["number"] != number
+                               or attempt["status"] != "failed"
+                               for number, attempt in enumerate(attempts, 1))):
+                    raise Problem(409, "retry_conflict", "The approved failed attempt is no longer retryable")
+                recorded = json.loads(row["environment_json"])
+                if not isinstance(recorded, dict) or recorded.get("code_sha256") != environment()["code_sha256"]:
+                    raise Problem(409, "retry_code_changed",
+                                  "Training source has changed; explicitly create a new run with the current code")
             from .model_evaluations import active_count
             active = active_count(db)
             if active >= MAX_ACTIVE_RUNS:

@@ -82,7 +82,7 @@ API / Worker 通过各自终端的 Ctrl+C 停止。API 正常退出会终结自�
 
 所有业务及健康路由均要求 `Authorization: Bearer <token>`。token 固定绑定 tenant，请求体不能选择 tenant；越权对象返回 404。请求 JSON 不允许未知字段、重复字段、非有限数值或任意外部 URL、文件路径、可执行配方。完整路由和错误码见 [架构契约](docs/architecture.md#最小-apiv1)。
 
-- 训练：`POST /runs` 携带 `Idempotency-Key`；`GET /runs/{id}` 查询；失败后 `POST /runs/{id}/retry` 携带 `{}` 显式重试
+- 训练：`POST /runs` 携带 `Idempotency-Key`；`GET /runs/{id}` 查询；失败后 `POST /runs/{id}/retry` 携带 `{"expected_attempt_id":"attempt_..."}` [有条件重试](docs/conditional-training-retry.md)，防止响应丢失和快速再失败造成重复排队；旧 `{}` 调用保持兼容，但没有这项保护
 - 独立评估：`POST /model-evaluations`（必需幂等键）、`GET /model-evaluations`（可选 model_version_id 筛选）及 `GET /model-evaluations/{id}`；由现有 Worker 独立子进程执行，详情见专项契约
 - 登记：`GET /models`、`GET /models/{id}` 查询不可变技术记录、评估和摘要；[ONNX 交付](docs/edge-delivery.md)提供鉴权部署产物下载（非训练 checkpoint）
 - 配方发现：鉴权 `GET /recipes` 返回任务/数据/预算/输入输出契约与质量警告；声明能力不等于运行就绪

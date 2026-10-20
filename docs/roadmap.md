@@ -65,3 +65,7 @@ Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，�
 ## 训练排队撤销（2026-10-20）
 
 新增[queued → cancelled 与显式离线 schema 迁移](queued-training-cancellation.md)，与 Worker 领取原子互斥并保留所有历史。运行中训练和独立评估取消、自动重试、检查点恢复仍未实现。
+
+## 失败训练有条件重试（2026-10-20）
+
+新增[绑定最新失败 attempt 的显式重试](conditional-training-retry.md)：同一 run 和不可变输入，保留失败历史及三次上限；拒绝旧失败重放及当前源码摘要不符。不新增 schema 或修改独立评估；自动重试、检查点恢复和运行中取消仍未实现。当前验证范围与结果见[专项验收](conditional-training-retry-verification.md)。

@@ -7,7 +7,7 @@ import threading
 import time
 from urllib.parse import urlsplit, parse_qsl
 
-from .common import (CONTRACT, MAX_ACTIVE_RUNS, MAX_DEPLOYMENTS, Problem,
+from .common import (CONTRACT, ID, MAX_ACTIVE_RUNS, MAX_DEPLOYMENTS, Problem,
                      RECIPE, object_fields, text_value, training_request)
 from .http_support import BoundedHTTPServer, JsonHandler
 from .recipes import recipe_ids, public_catalog
@@ -291,6 +291,7 @@ def make_handler(store, supervisor, auth):
             if method == "GET" and parts == ["health"]:
                 return 200, {"status": "ok", "recipe": RECIPE, "contract": CONTRACT, "cancel_supported": False,
                              "queued_cancel_supported": True,
+                             "conditional_training_retry_supported": True,
                              "recipes": recipe_ids(),
                              "budgets": {"active_runs": MAX_ACTIVE_RUNS, "deployments": MAX_DEPLOYMENTS}}
             if len(parts) == 1 and parts[0] in ("runs", "models", "deployments"):
@@ -331,8 +332,14 @@ def make_handler(store, supervisor, auth):
                         store.cancel(tenant, object_id)
                         return 200, store.run(tenant, object_id)
                     if action == "retry":
-                        object_fields(self.body(), ())
-                        store.retry(tenant, object_id)
+                        body = self.body()
+                        object_fields(body, (), ("expected_attempt_id",))
+                        expected = body.get("expected_attempt_id")
+                        if "expected_attempt_id" in body and (
+                                not isinstance(expected, str) or not expected.startswith("attempt_")
+                                or not ID.fullmatch(expected)):
+                            raise Problem(400, "invalid_input", "Expected a failed attempt ID")
+                        store.retry(tenant, object_id, expected)
                         return 202, store.run(tenant, object_id)
                 if collection == "deployments":
                     if action == "stop":

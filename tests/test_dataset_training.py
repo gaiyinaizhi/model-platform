@@ -95,6 +95,27 @@ class BindingTests(unittest.TestCase):
         image.write_bytes(original);self.store.retry('demo',rid)
         self.assertEqual(len(self.store.run('demo',rid)['attempts']),1)
 
+    def test_conditional_retry_keeps_published_synthetic_dataset_binding(self):
+        version = self.publish()
+        rid, body = self.submit(version)
+        run, attempt = self.store.claim()
+        self.store.fail(rid, attempt, 'synthetic_retry_fixture')
+        before = self.store.run('demo', rid)
+        binding = self.store.dataset_binding(run)
+        self.store.retry('demo', rid, attempt)
+        after = self.store.run('demo', rid)
+        self.assertEqual(after['status'], 'queued')
+        for key in ('id', 'recipe', 'dataset', 'config', 'environment', 'request_sha256', 'attempts'):
+            self.assertEqual(after[key], before[key])
+        self.assertEqual(self.store.dataset_binding(run), binding)
+        self.assertEqual(self.store.submit('demo', 'run', body), (rid, False))
+        _, newer = self.store.claim()
+        self.store.fail(rid, newer, 'synthetic_retry_fixture')
+        with self.assertRaises(Problem) as error:
+            self.store.retry('demo', rid, attempt)
+        self.assertEqual(error.exception.code, 'retry_conflict')
+        self.assertEqual(self.store.run('demo', rid)['status'], 'failed')
+
     def test_import_valid_but_training_rejects_duplicate_missing_class_budget(self):
         files=test_datasets.fixture()
         # Accepted import has class1 only in validation, unsuitable train.
