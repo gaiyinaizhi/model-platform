@@ -77,6 +77,58 @@ def make_handler(store, supervisor, auth):
                 if url.fragment or "%" in url.path:
                     raise Problem(400, "invalid_input", "Fragments and encoded paths are unsupported")
                 parts = url.path.strip("/").split("/")
+                if 'report' in url.path.split('/'):
+                    if (method != 'GET' or url.scheme or url.netloc or '?' in self.path
+                            or self.requestline.split()[1] != self.path
+                            or len(parts) != 3 or parts[0] != 'model-evaluations'
+                            or parts[2] != 'report' or self.path != '/' + '/'.join(parts)
+                            or any(self.headers.get_all(key, []) for key in
+                                   ('Range', 'If-Range', 'Transfer-Encoding', 'Content-Encoding'))
+                            or self.headers.get_all('Content-Length', []) not in ([], ['0'])):
+                        raise Problem(400, 'invalid_input', 'Use the exact body-free report route without query or range')
+                    from .evaluation_reports import report
+                    content = report(evaluations, tenant, parts[1])
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Disposition', 'attachment; filename="independent-evaluation-report.json"')
+                    self.send_header('Content-Length', str(len(content)))
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('X-Content-Type-Options', 'nosniff')
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.close_connection = True
+                    try:
+                        self.wfile.write(content)
+                    except OSError:
+                        pass
+                    return
+                if 'error-images' in url.path.split('/'):
+                    if (method != 'GET' or url.scheme or url.netloc or '?' in self.path
+                            or self.requestline.split()[1] != self.path
+                            or len(parts) != 4 or parts[0] != 'model-evaluations'
+                            or parts[2] != 'error-images'
+                            or self.path != '/' + '/'.join(parts)
+                            or any(self.headers.get_all(key, []) for key in
+                                   ('Range', 'If-Range', 'Transfer-Encoding', 'Content-Encoding'))
+                            or self.headers.get_all('Content-Length', []) not in ([], ['0'])):
+                        raise Problem(400, 'invalid_input', 'Use the exact body-free error-image route without query or range')
+                    from .evaluation_images import preview
+                    content = preview(evaluations, tenant, parts[1], parts[3])
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'image/png')
+                    self.send_header('Content-Length', str(len(content)))
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('X-Content-Type-Options', 'nosniff')
+                    self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.close_connection = True
+                    try:
+                        self.wfile.write(content)
+                    except OSError:
+                        # A binary success can never be followed by JSON.
+                        pass
+                    return
                 if url.query:
                     if method != "GET" or len(parts) != 1 or parts[0] not in ("runs", "models", "deployments", "model-evaluations", "model-evaluation-comparisons"):
                         raise Problem(400, "invalid_input", "Query parameters unsupported on this route")
@@ -238,6 +290,7 @@ def make_handler(store, supervisor, auth):
                 return 200, {"recipes": public_catalog()}
             if method == "GET" and parts == ["health"]:
                 return 200, {"status": "ok", "recipe": RECIPE, "contract": CONTRACT, "cancel_supported": False,
+                             "queued_cancel_supported": True,
                              "recipes": recipe_ids(),
                              "budgets": {"active_runs": MAX_ACTIVE_RUNS, "deployments": MAX_DEPLOYMENTS}}
             if len(parts) == 1 and parts[0] in ("runs", "models", "deployments"):
@@ -274,7 +327,9 @@ def make_handler(store, supervisor, auth):
                 if collection == "runs":
                     store.run(tenant, object_id)
                     if action == "cancel":
-                        raise Problem(501, "cancel_unsupported", "Training cancellation is not implemented")
+                        object_fields(self.body(), ())
+                        store.cancel(tenant, object_id)
+                        return 200, store.run(tenant, object_id)
                     if action == "retry":
                         object_fields(self.body(), ())
                         store.retry(tenant, object_id)

@@ -40,18 +40,18 @@ run 固定输入快照、摘要、配方、代码源码摘要、Python/平台环
 | POST /runs | 必须 Idempotency-Key；同 tenant 同 key 同摘要返回同 run，不同摘要 409；首次 202，重放 200 |
 | GET /runs、GET /runs/{id} | 不返回原始数据；包含 attempt、日志、状态和 model_version_id |
 | POST /runs/{id}/retry | 仅 failed 可重排，保留历史，最多 3 attempts；其他状态 409 |
-| POST /runs/{id}/cancel | 501，明确不支持；不伪造 cancelled |
+| POST /runs/{id}/cancel | `{}` 撤销 queued → cancelled；重复取消200；running/failed/succeeded为409，不中断进程 |
 | GET /models、GET /models/{id} | 不可变技术清单、血缘、评估、资源 ID 和摘要，不暴露路径或权重 |
 | POST /deployments | 指定 model_version_id；可选 Idempotency-Key，首次202/重放200；持久化 desired=running 后后台启动 |
 | GET /deployments、GET /deployments/{id} | desired 与 observed 分开；ready 来源于带版本的真实零向量推理探测，含检查时间 |
 | POST /deployments/{id}/predict | features 数组；实际 ready 才转发，返回版本、摘要、概率和分类 |
 | POST /deployments/{id}/stop | 先拒绝新调用，再终结进程；失败如实返回 503，成功返回 observed=stopped |
 
-错误为 JSON `{error: {code, message}}`：400 契约错误、401 鉴权、404 无权或不存在、409 冲突、413 超大输入、429 预算、501 取消不支持、503 未就绪/运行失败。未知字段被拒绝。已有鉴权 ONNX artifact 下载与交付清单，详见 [edge-delivery.md](edge-delivery.md)；另有精确hash的[预训练导入上传](pretrained-import.md)；无任意模型导入、任意执行、任意外部访问或真实业务接口。
+错误为 JSON `{error: {code, message}}`：400 契约错误、401 鉴权、404 无权或不存在、409 冲突、413 超大输入、429 预算、503 未就绪/运行失败。未知字段被拒绝。已有鉴权 ONNX artifact 下载与交付清单，详见 [edge-delivery.md](edge-delivery.md)；另有精确hash的[预训练导入上传](pretrained-import.md)；无任意模型导入、任意执行、任意外部访问或真实业务接口。
 
 ## 后续能力
 
-更新/回滚需新部署 ID，首版没有流量原子切换与自动回滚；没有模型质量发布门槛、审批准入或生产发布。设备包、更多视觉算法、厂商来源、外部 endpoint、对象存储、分布式 Worker、取消、强资源隔离和成熟多用户权限体系另行设计与验收。
+更新/回滚需新部署 ID，首版没有流量原子切换与自动回滚；没有模型质量发布门槛、审批准入或生产发布。设备包、更多视觉算法、厂商来源、外部 endpoint、对象存储、分布式 Worker、运行中取消、强资源隔离和成熟多用户权限体系另行设计与验收。
 
 ## 数字十分类增量契约
 
@@ -114,3 +114,12 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 新增鉴权 `GET /model-evaluation-comparisons?evaluation_a_id=...&evaluation_b_id=...`，只比较同租户两条不同 ID 的成功独立评估，不要求模型 ID 不同。两侧完整性校验后严格比较数据版本、内容、样本顺序、类别映射、协议、提交和执行代码/Python/平台/依赖；任何差异返回明确不兼容原因和空差值。兼容时返回 AP50/AP50:95/AR@100、precision/recall、TP/FP/FN 的 B−A 差值，保留 null。
 
 只读请求不初始化数据集 schema、不写审计/结果/模型、不运行推理；既有训练比较、导入登记血缘、serving 和部署限制不变。详见[已评审契约](evaluation-comparison-contract.md)及[验收记录](evaluation-comparison-verification.md)。现有单一权重的重复记录仅说明固定条件下的重复性，不代表多模型排名、生产质量门槛或官方 COCO benchmark。
+
+## 单条独立评估报告
+
+`GET /model-evaluations/{id}/report` 复用租户归属优先、捕获行及原证据验证，导出安全的确定性 JSON 投影。共享标准库 schema 支持离线内部一致性校验，不读取或导出原预测/图像/权重；[契约与边界](evaluation-report-contract.md)。既有 detail/comparison 接口保持不变。
+
+
+## 训练排队撤销
+
+新增 queued → cancelled 单向终态，领取/撤销事务互斥，保留历史与原提交幂等绑定。健康能力分开表示 `cancel_supported=false` 与 `queued_cancel_supported=true`；旧运行目录需要显式离线备份迁移，详情见[排队撤销契约与升级步骤](queued-training-cancellation.md)。独立评估与运行中训练不支持取消。

@@ -107,7 +107,7 @@ API / Worker 通过各自终端的 Ctrl+C 停止。API 正常退出会终结自�
 
 - **只适合可信本地操作者的小型 CPU 开发示例**：没有 TLS、成熟运维权限、独立 OS 用户、cgroup、容器、硬 CPU/RSS/GPU 配额；不同租户共用队列和逻辑预算，同一 OS 用户可读写运行文件
 - 进程分离和 API 技术对象隔离不是生产多租户安全沙箱；本机管理员可破坏磁盘文件，逻辑不可变不是 WORM 存储
-- 取消返回 501；没有检查点恢复、自动训练重试、版本热切流、自动回滚或质量发布门槛；更新版本需新部署 ID
+- 支持[取消尚未领取的训练排队](docs/queued-training-cancellation.md)，运行中取消仍不支持；旧运行目录需显式离线迁移和配套客户端升级。没有检查点恢复、自动训练重试、版本热切流、自动回滚或质量发布门槛；更新版本需新部署 ID
 - serving 崩溃会撤销 ready，不在同一个 supervisor 生命周期自动重启；API 重启按 desired 状态重新验证启动
 - SQLite 单机运行，没有分布式队列、自动数据保留/清理、备份恢复验收或断电耐久性保证；未登记的孤儿产物不会被部署，也不会自动删除
 - 图像配方包括固定公开Fashion-MNIST灰度分类、Open Images Cat单类检测和有预算的 YOLO 数据集版本绑定多类别 CPU 检测；检测仅允许受限内联RGB预测；尚无设备转换包、机器人/无人机适配、任意外部模型导入、厂商 endpoint 或 Sluggard 接口；后续能力见 [路线图](docs/roadmap.md)
@@ -128,3 +128,11 @@ docs/                架构契约、路线图、验收记录
 ```
 
 贡献前阅读 [AGENTS.md](AGENTS.md)、[架构](docs/architecture.md) 和 [路线图](docs/roadmap.md)。不要向 Git 提交训练数据、权重、数据库、日志、密钥或可用凭据；`.gitignore` 不能替代提交前检查。
+
+## Optional diagnostic image review
+
+[Error-image previews](docs/error-image-preview-contract.md) add authenticated, read-only, metadata-free limited PNGs for the existing bounded independent-evaluation wrong examples. Raw image browsing, external fetch and new inference are excluded. [Verification and local publication boundary](docs/error-image-preview-verification.md) distinguish synthetic acceptance from retained-data/model-quality evidence.
+
+## 独立评估报告导出
+
+新增单条成功记录的只读 [JSON 报告与标准库离线校验](docs/evaluation-report-contract.md)：固定字段、512 KiB 上限、完整逐类别指标和可重算导出摘要；源结果/绑定/预测摘要仅作引用。离线通过仅表示内部一致，不证明来源真实性、签名、重新评估、生产许可或设备认证。实际验收和发布另行记录。

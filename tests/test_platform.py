@@ -198,7 +198,7 @@ class PlatformTests(unittest.TestCase):
         self.worker_once()
         self.assertEqual(self.call("/models")[1]["ids"], [model["model_version_id"]])
         self.assertEqual(self.call("/runs/" + run["id"] + "/retry", {})[0], 409)
-        self.assertEqual(self.call("/runs/" + run["id"] + "/cancel", {})[0], 501)
+        self.assertEqual(self.call("/runs/" + run["id"] + "/cancel", {})[0], 409)
         self.assertEqual(self.call("/models/" + model["model_version_id"], tenant="other")[0], 404)
         with self.runtime.connection() as db:
             for table in ("models", "evaluations"):

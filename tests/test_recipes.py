@@ -418,7 +418,7 @@ with runtime.lock('worker'):
         self.assertEqual(final["request_sha256"], digest(body))
         self.assertIsNone(final["model_version_id"])
         self.assertEqual(self.call("/runs/" + run["id"] + "/retry", {})[0], 409)
-        self.assertEqual(self.call("/runs/" + run["id"] + "/cancel", {})[0], 501)
+        self.assertEqual(self.call("/runs/" + run["id"] + "/cancel", {})[0], 409)
         self.assertEqual(len(self.call("/models")[1]["ids"]), 1)
         self.assertEqual(len(list(self.runtime.artifacts.iterdir())), 1)
 

@@ -240,17 +240,21 @@ class CursorKeyTests(unittest.TestCase):
             self.assertEqual(len(second['ids']), 1)
             self.assertIsNone(second['next_cursor'])
 
-    def test_legacy_schema_migration_preserves_technical_data(self):
+    def test_legacy_deployment_schema_migration_preserves_technical_data(self):
         with tempfile.TemporaryDirectory() as directory:
             runtime = Runtime(directory)
-            from model_platform.store import SCHEMA
-            start = SCHEMA.index('CREATE TABLE IF NOT EXISTS deployment_keys')
-            end = SCHEMA.index('CREATE TABLE IF NOT EXISTS audit')
-            schema = SCHEMA[:start] + SCHEMA[end:]
+            # Keep the versioned queue schema complete. This fixture targets
+            # the older additive deployment-key/index upgrade, not queue migration.
+            Store(runtime)
             with runtime.connection() as db:
-                db.executescript(schema)
+                db.execute('DROP TABLE deployment_keys')
+                db.execute('DROP INDEX models_history')
+                db.execute('DROP INDEX deployments_history')
                 before = db.execute("SELECT sql FROM sqlite_master WHERE name='models'").fetchone()[0]
             Store(runtime)
             with runtime.connection() as db:
                 self.assertEqual(db.execute("SELECT sql FROM sqlite_master WHERE name='models'").fetchone()[0], before)
                 self.assertIsNotNone(db.execute("SELECT name FROM sqlite_master WHERE name='deployment_keys'").fetchone())
+                for name in ('models_history', 'deployments_history'):
+                    self.assertIsNotNone(db.execute(
+                        "SELECT name FROM sqlite_master WHERE type='index' AND name=?", (name,)).fetchone())

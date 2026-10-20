@@ -9,16 +9,11 @@ from .common import (MAX_ACTIVE_RUNS, MAX_ATTEMPTS, MAX_DEPLOYMENTS, Problem,
                      RECIPE, digest, encode, environment, now)
 
 from .import_schema import IMPORT_SCHEMA, MODEL_TABLE
+from .run_schema import RUN_TABLE, VERSION as QUEUE_SCHEMA_VERSION, startup_check, verify as verify_queue_schema
 
 SCHEMA = IMPORT_SCHEMA + """
 PRAGMA journal_mode=WAL;
-CREATE TABLE IF NOT EXISTS runs (
- id TEXT PRIMARY KEY, tenant TEXT NOT NULL, idempotency_key TEXT NOT NULL,
- request_sha256 TEXT NOT NULL, input_json TEXT NOT NULL, environment_json TEXT NOT NULL,
- status TEXT NOT NULL CHECK(status IN ('queued','running','succeeded','failed')),
- created_at REAL NOT NULL, updated_at REAL NOT NULL, model_version_id TEXT,
- UNIQUE(tenant,idempotency_key)
-);
+""" + RUN_TABLE.format(name="IF NOT EXISTS runs") + ";\n" + """
 CREATE TABLE IF NOT EXISTS run_dataset_bindings (
  run_id TEXT PRIMARY KEY REFERENCES runs(id), dataset_version_id TEXT NOT NULL,
  content_sha256 TEXT NOT NULL, binding_json TEXT NOT NULL
@@ -73,6 +68,9 @@ def identifier(prefix):
 class Store:
     def __init__(self, runtime):
         self.runtime = runtime
+        # Fail before cursor material or schema scripts can mutate an old/partial DB.
+        with runtime.connection() as db:
+            fresh_runs = startup_check(db)
         self.cursor_key = cursor_key(runtime.home)
         with runtime.connection() as db:
             fresh = not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='models'").fetchone()
@@ -81,11 +79,14 @@ class Store:
             if fresh:
                 db.execute('CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY)')
                 db.execute("INSERT OR IGNORE INTO schema_migrations VALUES('imported-origin/v1')")
+            if fresh_runs:
+                db.execute('INSERT OR IGNORE INTO schema_migrations VALUES(?)', (QUEUE_SCHEMA_VERSION,))
             for table in ("models", "evaluations"):
                 for action in ("UPDATE", "DELETE"):
                     db.execute(f"CREATE TRIGGER IF NOT EXISTS {table}_{action.lower()}_immutable "
                                f"BEFORE {action} ON {table} BEGIN "
                                "SELECT RAISE(ABORT,'technical records are immutable'); END")
+            verify_queue_schema(db)
 
     @staticmethod
     def audit(db, tenant, action, object_id):
@@ -257,6 +258,20 @@ class Store:
                 raise Problem(429, "run_capacity", "Active run budget reached")
             db.execute("UPDATE runs SET status='queued',updated_at=? WHERE id=?", (now(), run_id))
             self.audit(db, tenant, "retry", run_id)
+
+    def cancel(self, tenant, run_id):
+        """Withdraw only unclaimed work. Serialize with claim/retry and keep history."""
+        with self.runtime.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._owned(db, "runs", tenant, run_id)
+            if row["status"] == "cancelled":
+                return
+            if row["status"] != "queued":
+                message = ("Running training cannot be cancelled by this operation"
+                           if row["status"] == "running" else "Only queued training can be cancelled")
+                raise Problem(409, "cancel_conflict", message)
+            db.execute("UPDATE runs SET status='cancelled',updated_at=? WHERE id=?", (now(), run_id))
+            self.audit(db, tenant, "cancel_queued", run_id)
 
     def log(self, attempt_id, event, details=None):
         with self.runtime.connection() as db:

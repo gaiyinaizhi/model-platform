@@ -182,7 +182,7 @@ class MigrationTests(unittest.TestCase):
             db.execute('UPDATE old_models SET rowid=41')
             db.execute('DROP TABLE models')
             db.execute('ALTER TABLE old_models RENAME TO models')
-            db.execute('DROP TABLE schema_migrations')
+            db.execute("DELETE FROM schema_migrations WHERE version='imported-origin/v1'")
         self.store = Store(self.runtime)
 
     def test_migration_preserves_bytes_links_rowids_and_replays(self):

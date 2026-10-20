@@ -218,6 +218,9 @@ class StoreFixture(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(dir=root)
         self.addCleanup(self.temp.cleanup)
         self.runtime = Runtime(self.temp.name)
+        # Match production init/API ordering: initialize the complete platform
+        # before independently exercising the dataset subsystem.
+        Store(self.runtime)
         self.store = DatasetStore(self.runtime)
 
     def create(self, tenant='a', key='one', body=None):
