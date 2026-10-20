@@ -58,6 +58,15 @@ class QueueTests(unittest.TestCase):
     def create(self, key='one', tenant='demo'):
         return self.evaluations.create(tenant, key, self.body)[0]
 
+    def test_cancelled_training_does_not_block_global_evaluation_order(self):
+        training, _ = self.store.submit('demo', 'cancel-before-evaluation', request_body())
+        evaluation = self.create('after-training')
+        self.assertIsNone(self.evaluations.claim())
+        self.store.cancel('demo', training)
+        self.assertEqual(self.evaluations.claim()['id'], evaluation['id'])
+        self.assertIsNone(self.store.claim())
+        self.assertEqual(self.store.run('demo', training)['attempts'], [])
+
     def succeed(self):
         item = self.create()
         row = self.evaluations.claim()

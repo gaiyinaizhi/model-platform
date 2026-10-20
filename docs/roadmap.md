@@ -11,7 +11,7 @@
 ## 后续按需求推进
 
 1. 成熟 HTTP 网关、TLS、运维认证、OS 级资源配额及更严格安全边界；当前只适合可信本地 CPU 开发。
-2. 可确认实际停止的训练取消、更细重试策略、检查点恢复；首版取消明确 501。
+2. 可确认实际停止的训练取消、更细重试策略、检查点恢复；已支持尚未领取的训练排队撤销，运行中取消仍未实现。
 3. 推理更新、原子切流与回滚、质量门槛与发布流程、性能/内存基准。
 4. visionlab 和教学平台各自接入稳定技术接口；Sluggard 只管理课程、业务审批/权限和关联，不成为本平台技术状态的主写方。
 5. 更多数据来源和算法、受控导入、对象存储；不加载不可信 pickle 或 arbitrary code。
@@ -60,3 +60,8 @@ Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，�
 新增鉴权 `GET /model-evaluation-comparisons?evaluation_a_id=...&evaluation_b_id=...`，只比较同租户两条不同 ID 的成功独立评估，不要求模型 ID 不同。两侧完整性校验后严格比较数据版本、内容、样本顺序、类别映射、协议、提交和执行代码/Python/平台/依赖；任何差异返回明确不兼容原因和空差值。兼容时返回 AP50/AP50:95/AR@100、precision/recall、TP/FP/FN 的 B−A 差值，保留 null。
 
 只读请求不初始化数据集 schema、不写审计/结果/模型、不运行推理；既有训练比较、导入登记血缘、serving 和部署限制不变。详见[已评审契约](evaluation-comparison-contract.md)及[验收记录](evaluation-comparison-verification.md)。现有单一权重的重复记录仅说明固定条件下的重复性，不代表多模型排名、生产质量门槛或官方 COCO benchmark。
+
+
+## 训练排队撤销（2026-10-20）
+
+新增[queued → cancelled 与显式离线 schema 迁移](queued-training-cancellation.md)，与 Worker 领取原子互斥并保留所有历史。运行中训练和独立评估取消、自动重试、检查点恢复仍未实现。

@@ -290,6 +290,7 @@ def make_handler(store, supervisor, auth):
                 return 200, {"recipes": public_catalog()}
             if method == "GET" and parts == ["health"]:
                 return 200, {"status": "ok", "recipe": RECIPE, "contract": CONTRACT, "cancel_supported": False,
+                             "queued_cancel_supported": True,
                              "recipes": recipe_ids(),
                              "budgets": {"active_runs": MAX_ACTIVE_RUNS, "deployments": MAX_DEPLOYMENTS}}
             if len(parts) == 1 and parts[0] in ("runs", "models", "deployments"):
@@ -326,7 +327,9 @@ def make_handler(store, supervisor, auth):
                 if collection == "runs":
                     store.run(tenant, object_id)
                     if action == "cancel":
-                        raise Problem(501, "cancel_unsupported", "Training cancellation is not implemented")
+                        object_fields(self.body(), ())
+                        store.cancel(tenant, object_id)
+                        return 200, store.run(tenant, object_id)
                     if action == "retry":
                         object_fields(self.body(), ())
                         store.retry(tenant, object_id)
