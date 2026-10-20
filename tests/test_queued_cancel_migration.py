@@ -229,5 +229,45 @@ class QueueMigrationTests(unittest.TestCase):
             self.assertEqual(definitions(self.runtime), definitions(fresh))
 
 
+
+
+
+class QueueStartupNamespaceTests(unittest.TestCase):
+    def test_dataset_only_and_missing_queue_in_full_platform_fail_closed(self):
+        from model_platform.datasets import DatasetStore
+        for dataset_only in (True, False):
+            with self.subTest(dataset_only=dataset_only), tempfile.TemporaryDirectory() as directory:
+                runtime = Runtime(directory)
+                if dataset_only:
+                    DatasetStore(runtime)
+                else:
+                    Store(runtime)
+                    with runtime.connection() as db:
+                        db.execute('PRAGMA foreign_keys=OFF')
+                        db.execute('DROP TABLE runs')
+                with runtime.connection() as db:
+                    before = list(db.iterdump())
+                with mock.patch('model_platform.store.cursor_key', side_effect=AssertionError):
+                    with self.assertRaisesRegex(RuntimeError, 'Incomplete platform schema'):
+                        Store(runtime)
+                with runtime.connection() as db:
+                    self.assertEqual(list(db.iterdump()), before)
+
+    def test_absent_queue_with_partial_or_unknown_tables_fails_without_writes(self):
+        for tables in (('dataset_imports',), ('dataset_imports', 'dataset_versions'),
+                       ('attempts',), ('models',), ('schema_migrations',), ('unexpected',)):
+            with self.subTest(tables=tables), tempfile.TemporaryDirectory() as directory:
+                runtime = Runtime(directory)
+                with runtime.connection() as db:
+                    for table in tables:
+                        db.execute(f'CREATE TABLE {table}(fixture TEXT)')
+                    before = list(db.iterdump())
+                with mock.patch('model_platform.store.cursor_key', side_effect=AssertionError):
+                    with self.assertRaisesRegex(RuntimeError, 'Incomplete platform schema'):
+                        Store(runtime)
+                with runtime.connection() as db:
+                    self.assertEqual(list(db.iterdump()), before)
+
+
 if __name__ == '__main__':
     unittest.main()
