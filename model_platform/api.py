@@ -77,6 +77,31 @@ def make_handler(store, supervisor, auth):
                 if url.fragment or "%" in url.path:
                     raise Problem(400, "invalid_input", "Fragments and encoded paths are unsupported")
                 parts = url.path.strip("/").split("/")
+                if 'report' in url.path.split('/'):
+                    if (method != 'GET' or url.scheme or url.netloc or '?' in self.path
+                            or self.requestline.split()[1] != self.path
+                            or len(parts) != 3 or parts[0] != 'model-evaluations'
+                            or parts[2] != 'report' or self.path != '/' + '/'.join(parts)
+                            or any(self.headers.get_all(key, []) for key in
+                                   ('Range', 'If-Range', 'Transfer-Encoding', 'Content-Encoding'))
+                            or self.headers.get_all('Content-Length', []) not in ([], ['0'])):
+                        raise Problem(400, 'invalid_input', 'Use the exact body-free report route without query or range')
+                    from .evaluation_reports import report
+                    content = report(evaluations, tenant, parts[1])
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Disposition', 'attachment; filename="independent-evaluation-report.json"')
+                    self.send_header('Content-Length', str(len(content)))
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('X-Content-Type-Options', 'nosniff')
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.close_connection = True
+                    try:
+                        self.wfile.write(content)
+                    except OSError:
+                        pass
+                    return
                 if 'error-images' in url.path.split('/'):
                     if (method != 'GET' or url.scheme or url.netloc or '?' in self.path
                             or self.requestline.split()[1] != self.path

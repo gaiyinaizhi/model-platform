@@ -132,3 +132,7 @@ docs/                架构契约、路线图、验收记录
 ## Optional diagnostic image review
 
 [Error-image previews](docs/error-image-preview-contract.md) add authenticated, read-only, metadata-free limited PNGs for the existing bounded independent-evaluation wrong examples. Raw image browsing, external fetch and new inference are excluded. [Verification and local publication boundary](docs/error-image-preview-verification.md) distinguish synthetic acceptance from retained-data/model-quality evidence.
+
+## 独立评估报告导出
+
+新增单条成功记录的只读 [JSON 报告与标准库离线校验](docs/evaluation-report-contract.md)：固定字段、512 KiB 上限、完整逐类别指标和可重算导出摘要；源结果/绑定/预测摘要仅作引用。离线通过仅表示内部一致，不证明来源真实性、签名、重新评估、生产许可或设备认证。实际验收和发布另行记录。
