@@ -77,6 +77,38 @@ def make_handler(store, supervisor, auth):
                 if url.fragment or "%" in url.path:
                     raise Problem(400, "invalid_input", "Fragments and encoded paths are unsupported")
                 parts = url.path.strip("/").split("/")
+                if url.path.rstrip('/') == '/training-model-comparisons':
+                    if (method != 'GET' or url.path != '/training-model-comparisons'
+                            or self.path != url.path + '?' + url.query
+                            or len(url.query) > 200 or '%' in url.query or '+' in url.query
+                            or any(self.headers.get_all(key, []) for key in
+                                   ('Range', 'If-Range', 'Transfer-Encoding', 'Content-Encoding'))
+                            or self.requestline.split()[1] != self.path
+                            or self.headers.get_all('Content-Length', []) not in ([], ['0'])):
+                        raise Problem(400, 'invalid_input', 'Use the exact body-free training comparison route')
+                    try:
+                        pairs = parse_qsl(url.query, keep_blank_values=True, strict_parsing=True, max_num_fields=2)
+                    except ValueError:
+                        raise Problem(400, 'invalid_input', 'Invalid comparison query') from None
+                    query = dict(pairs)
+                    if len(pairs) != 2 or set(query) != {'model_a_id', 'model_b_id'}:
+                        raise Problem(400, 'invalid_input', 'Use exactly model_a_id and model_b_id')
+                    from .training_comparisons import compare
+                    from .training_report_schema import encode as report_encode
+                    content = report_encode(compare(store, tenant, query['model_a_id'], query['model_b_id']))
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(content)))
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('X-Content-Type-Options', 'nosniff')
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.close_connection = True
+                    try:
+                        self.wfile.write(content)
+                    except OSError:
+                        pass
+                    return
                 if 'training-report' in url.path.split('/'):
                     if (method != 'GET' or url.scheme or url.netloc or '?' in self.path
                             or self.requestline.split()[1] != self.path
