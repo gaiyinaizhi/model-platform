@@ -12,6 +12,9 @@ from .common import (MAX_ACTIVE_RUNS, MAX_ATTEMPTS, MAX_DEPLOYMENTS, Problem,
 from .import_schema import IMPORT_SCHEMA, MODEL_TABLE
 from .run_schema import RUN_TABLE, VERSION as QUEUE_SCHEMA_VERSION, startup_check, verify as verify_queue_schema
 
+from .running_cancel_schema import (ATTEMPT_TABLE, SCHEMA as CANCEL_SCHEMA,
+    VERSION as CANCEL_SCHEMA_VERSION, startup_check as cancel_startup_check, verify as verify_cancel_schema)
+
 SCHEMA = IMPORT_SCHEMA + """
 PRAGMA journal_mode=WAL;
 """ + RUN_TABLE.format(name="IF NOT EXISTS runs") + ";\n" + """
@@ -23,11 +26,7 @@ CREATE TRIGGER IF NOT EXISTS run_dataset_binding_update_immutable BEFORE UPDATE 
 BEGIN SELECT RAISE(ABORT,'run dataset bindings are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS run_dataset_binding_delete_immutable BEFORE DELETE ON run_dataset_bindings
 BEGIN SELECT RAISE(ABORT,'run dataset bindings are immutable'); END;
-CREATE TABLE IF NOT EXISTS attempts (
- id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id), number INTEGER NOT NULL,
- status TEXT NOT NULL CHECK(status IN ('running','succeeded','failed')),
- started_at REAL NOT NULL, finished_at REAL, error_code TEXT, UNIQUE(run_id,number)
-);
+""" + ATTEMPT_TABLE.format(name="IF NOT EXISTS attempts") + ";\n" + CANCEL_SCHEMA + "\n" + """
 CREATE TABLE IF NOT EXISTS logs (
  id INTEGER PRIMARY KEY AUTOINCREMENT, attempt_id TEXT NOT NULL REFERENCES attempts(id),
  time REAL NOT NULL, event TEXT NOT NULL, details TEXT NOT NULL
@@ -72,6 +71,7 @@ class Store:
         # Fail before cursor material or schema scripts can mutate an old/partial DB.
         with runtime.connection() as db:
             fresh_runs = startup_check(db)
+            cancel_startup_check(db)
         self.cursor_key = cursor_key(runtime.home)
         with runtime.connection() as db:
             fresh = not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='models'").fetchone()
@@ -82,12 +82,14 @@ class Store:
                 db.execute("INSERT OR IGNORE INTO schema_migrations VALUES('imported-origin/v1')")
             if fresh_runs:
                 db.execute('INSERT OR IGNORE INTO schema_migrations VALUES(?)', (QUEUE_SCHEMA_VERSION,))
+                db.execute('INSERT OR IGNORE INTO schema_migrations VALUES(?)', (CANCEL_SCHEMA_VERSION,))
             for table in ("models", "evaluations"):
                 for action in ("UPDATE", "DELETE"):
                     db.execute(f"CREATE TRIGGER IF NOT EXISTS {table}_{action.lower()}_immutable "
                                f"BEFORE {action} ON {table} BEGIN "
                                "SELECT RAISE(ABORT,'technical records are immutable'); END")
             verify_queue_schema(db)
+            verify_cancel_schema(db)
 
     @staticmethod
     def audit(db, tenant, action, object_id):
@@ -127,38 +129,43 @@ class Store:
     def run(self, tenant, run_id):
         with self.runtime.connection() as db:
             db.execute("BEGIN")
-            row = self._owned(db, "runs", tenant, run_id)
-            position = None
-            if row['status'] == 'queued':
-                position = db.execute(
-                    "SELECT count(*) FROM runs WHERE tenant=? AND status='queued' "
-                    "AND (created_at < ? OR (created_at = ? AND id <= ?))",
-                    (tenant, row['created_at'], row['created_at'], run_id)).fetchone()[0]
-            body = json.loads(row["input_json"])
-            result = {k: row[k] for k in ("id", "status", "created_at", "updated_at", "request_sha256", "model_version_id")}
-            from .recipes import get_recipe
-            from .dataset_detection import RECIPE as DATASET_RECIPE
-            binding = db.execute("SELECT binding_json FROM run_dataset_bindings WHERE run_id=?", (run_id,)).fetchone()
-            if body.get('recipe') == DATASET_RECIPE:
-                if not binding:
-                    raise Problem(409, 'dataset_binding_missing', 'Run dataset binding is unavailable')
-                dataset = json.loads(binding['binding_json'])
-            else:
-                train_count, evaluation_count = get_recipe(body.get("recipe", RECIPE)).counts(body["dataset"])
-                dataset = {"source": body["dataset"]["source"], "version": body["dataset"]["version"],
-                           "sha256": digest(body["dataset"]), "train_count": train_count, "evaluation_count": evaluation_count}
-            result["queue"] = {"scope": "tenant", "position": position}
-            result.update(recipe=body.get("recipe", RECIPE), environment=json.loads(row["environment_json"]),
-                          dataset=dataset, config=body["config"],
-                          business_ref=body.get("business_ref"), attempts=[])
-            for attempt in db.execute("SELECT * FROM attempts WHERE run_id=? ORDER BY number", (run_id,)):
-                item = dict(attempt)
-                item["logs"] = [dict(log) for log in db.execute(
-                    "SELECT time,event,details FROM logs WHERE attempt_id=? ORDER BY id", (attempt["id"],))]
-                for log in item["logs"]:
-                    log["details"] = json.loads(log["details"])
-                result["attempts"].append(item)
-            return result
+            return self._run(db, tenant, run_id)
+
+    def _run(self, db, tenant, run_id):
+        row = self._owned(db, "runs", tenant, run_id)
+        position = None
+        if row['status'] == 'queued':
+            position = db.execute(
+                "SELECT count(*) FROM runs WHERE tenant=? AND status='queued' "
+                "AND (created_at < ? OR (created_at = ? AND id <= ?))",
+                (tenant, row['created_at'], row['created_at'], run_id)).fetchone()[0]
+        body = json.loads(row["input_json"])
+        result = {k: row[k] for k in ("id", "status", "created_at", "updated_at", "request_sha256", "model_version_id")}
+        from .recipes import get_recipe
+        from .dataset_detection import RECIPE as DATASET_RECIPE
+        binding = db.execute("SELECT binding_json FROM run_dataset_bindings WHERE run_id=?", (run_id,)).fetchone()
+        if body.get('recipe') == DATASET_RECIPE:
+            if not binding:
+                raise Problem(409, 'dataset_binding_missing', 'Run dataset binding is unavailable')
+            dataset = json.loads(binding['binding_json'])
+        else:
+            train_count, evaluation_count = get_recipe(body.get("recipe", RECIPE)).counts(body["dataset"])
+            dataset = {"source": body["dataset"]["source"], "version": body["dataset"]["version"],
+                       "sha256": digest(body["dataset"]), "train_count": train_count, "evaluation_count": evaluation_count}
+        result["queue"] = {"scope": "tenant", "position": position}
+        result.update(recipe=body.get("recipe", RECIPE), environment=json.loads(row["environment_json"]),
+                      dataset=dataset, config=body["config"],
+                      business_ref=body.get("business_ref"), attempts=[])
+        for attempt in db.execute("SELECT * FROM attempts WHERE run_id=? ORDER BY number", (run_id,)):
+            item = dict(attempt)
+            item["logs"] = [dict(log) for log in db.execute(
+                "SELECT time,event,details FROM logs WHERE attempt_id=? ORDER BY id", (attempt["id"],))]
+            for log in item["logs"]:
+                log["details"] = json.loads(log["details"])
+            result["attempts"].append(item)
+        cancellation = db.execute("SELECT attempt_id,requested_at,confirmed_at FROM training_cancellations WHERE run_id=?", (run_id,)).fetchone()
+        result['cancellation'] = (dict(cancellation, status='confirmed' if cancellation['confirmed_at'] is not None else 'requested') if cancellation else None)
+        return result
 
     def dataset_binding(self, run, verify=True):
         from .dataset_detection import RECIPE as DATASET_RECIPE, bind_version
@@ -288,6 +295,57 @@ class Store:
             db.execute("UPDATE runs SET status='cancelled',updated_at=? WHERE id=?", (now(), run_id))
             self.audit(db, tenant, "cancel_queued", run_id)
 
+    @staticmethod
+    def _owns_attempt(db, run_id, attempt_id, status='running'):
+        row = db.execute("SELECT status,model_version_id FROM runs WHERE id=?", (run_id,)).fetchone()
+        attempts = db.execute("SELECT id,number,status FROM attempts WHERE run_id=? ORDER BY number", (run_id,)).fetchall()
+        return bool(row and row['status'] == status and row['model_version_id'] is None
+                    and attempts and attempts[-1]['id'] == attempt_id
+                    and attempts[-1]['status'] == status
+                    and all(a['number'] == n and a['status'] == 'failed'
+                            for n, a in enumerate(attempts[:-1], 1))
+                    and attempts[-1]['number'] == len(attempts))
+
+    def cancel_running(self, tenant, run_id, expected_attempt_id):
+        with self.runtime.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = self._owned(db, 'runs', tenant, run_id)
+            old = db.execute('SELECT * FROM training_cancellations WHERE run_id=?', (run_id,)).fetchone()
+            if old and old['attempt_id'] == expected_attempt_id:
+                if not self._owns_attempt(db, run_id, expected_attempt_id, 'cancelled' if old['confirmed_at'] is not None else 'running'):
+                    raise Problem(409, 'cancel_conflict', 'Cancellation history no longer matches the run')
+                return (200 if old['confirmed_at'] is not None else 202), self._run(db, tenant, run_id)
+            if old or not self._owns_attempt(db, run_id, expected_attempt_id):
+                raise Problem(409, 'cancel_conflict', 'The approved running attempt is no longer cancellable')
+            db.execute('INSERT INTO training_cancellations VALUES(?,?,?,NULL,NULL)', (expected_attempt_id, run_id, now()))
+            self.audit(db, tenant, 'request_running_cancel', run_id)
+            return 202, self._run(db, tenant, run_id)
+
+    def cancellation_requested(self, run_id, attempt_id):
+        with self.runtime.connection() as db:
+            return bool(db.execute('SELECT 1 FROM training_cancellations WHERE run_id=? AND attempt_id=? AND confirmed_at IS NULL', (run_id, attempt_id)).fetchone())
+
+    def _confirm_cancel(self, db, run_id, attempt_id, proof):
+        if proof not in ('never_started', 'child_reaped', 'lease_recovered'):
+            raise RuntimeError('Execution termination proof required')
+        pending = db.execute('SELECT requested_at FROM training_cancellations WHERE run_id=? AND attempt_id=? AND confirmed_at IS NULL', (run_id, attempt_id)).fetchone()
+        if not pending or not self._owns_attempt(db, run_id, attempt_id):
+            return False
+        # Wall clock may move backwards; preserve public request/confirmation order.
+        stamp = max(now(), pending['requested_at'])
+        db.execute('UPDATE training_cancellations SET confirmed_at=?,confirmation_kind=? WHERE attempt_id=?', (stamp, proof, attempt_id))
+        db.execute("UPDATE attempts SET status='cancelled',finished_at=?,error_code=NULL WHERE id=?", (stamp, attempt_id))
+        db.execute("UPDATE runs SET status='cancelled',updated_at=? WHERE id=?", (stamp, run_id))
+        tenant = db.execute('SELECT tenant FROM runs WHERE id=?', (run_id,)).fetchone()[0]
+        self.audit(db, tenant, 'confirm_running_cancel', run_id)
+        db.execute('INSERT INTO logs(attempt_id,time,event,details) VALUES(?,?,?,?)', (attempt_id, stamp, 'cancelled', '{}'))
+        return True
+
+    def confirm_cancel(self, run_id, attempt_id, proof):
+        with self.runtime.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            return self._confirm_cancel(db, run_id, attempt_id, proof)
+
     def log(self, attempt_id, event, details=None):
         with self.runtime.connection() as db:
             db.execute("INSERT INTO logs(attempt_id,time,event,details) VALUES(?,?,?,?)",
@@ -299,6 +357,10 @@ class Store:
             db.execute("BEGIN IMMEDIATE")
             attempts = db.execute("SELECT id,run_id FROM attempts WHERE status='running'").fetchall()
             for attempt in attempts:
+                if self._confirm_cancel(db, attempt['run_id'], attempt['id'], 'lease_recovered'):
+                    continue
+                if not self._owns_attempt(db, attempt['run_id'], attempt['id']):
+                    continue
                 db.execute("UPDATE attempts SET status='failed',error_code='interrupted',finished_at=? WHERE id=?",
                            (now(), attempt["id"]))
                 db.execute("UPDATE runs SET status='failed',updated_at=? WHERE id=?", (now(), attempt["run_id"]))
@@ -318,14 +380,19 @@ class Store:
             db.execute("UPDATE runs SET status='running',updated_at=? WHERE id=?", (now(), run["id"]))
             return dict(run), attempt
 
-    def fail(self, run_id, attempt_id, code):
+    def fail(self, run_id, attempt_id, code, *, termination_proof=None):
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            changed = db.execute("UPDATE attempts SET status='failed',error_code=?,finished_at=? WHERE id=? AND status='running'",
-                       (code, now(), attempt_id)).rowcount
-            db.execute("UPDATE runs SET status='failed',updated_at=? WHERE id=? AND status='running'", (now(), run_id))
-        if changed:
-            self.log(attempt_id, "failed", {"code": code})
+            if not self._owns_attempt(db, run_id, attempt_id):
+                return
+            pending = db.execute('SELECT 1 FROM training_cancellations WHERE attempt_id=?', (attempt_id,)).fetchone()
+            if pending:
+                if termination_proof is not None:
+                    self._confirm_cancel(db, run_id, attempt_id, termination_proof)
+                return
+            db.execute("UPDATE attempts SET status='failed',error_code=?,finished_at=? WHERE id=?", (code, now(), attempt_id))
+            db.execute("UPDATE runs SET status='failed',updated_at=? WHERE id=?", (now(), run_id))
+            db.execute('INSERT INTO logs(attempt_id,time,event,details) VALUES(?,?,?,?)', (attempt_id, now(), 'failed', encode({'code': code}).decode()))
 
     def register(self, run, attempt_id, artifact_hash, evaluation, manifest, *, deadline=None):
         def check_deadline():
@@ -355,9 +422,10 @@ class Store:
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             check_deadline()
-            owned = db.execute("SELECT status FROM attempts WHERE id=? AND run_id=?", (attempt_id, run["id"])).fetchone()
-            if not owned or owned[0] != "running":
+            if not self._owns_attempt(db, run["id"], attempt_id):
                 raise RuntimeError("Attempt no longer owns publication")
+            if db.execute('SELECT 1 FROM training_cancellations WHERE attempt_id=?', (attempt_id,)).fetchone():
+                raise Problem(409, 'cancel_requested', 'Cancellation prevents publication')
             db.execute("INSERT INTO evaluations VALUES(?,?,?,?,?,?)",
                        (eval_id, attempt_id, artifact_hash, evaluation["dataset_sha256"], encode(evaluation).decode(), now()))
             manifest.update(model_version_id=model_id, run_id=run["id"], attempt_id=attempt_id, evaluation_id=eval_id,

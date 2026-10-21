@@ -18,14 +18,17 @@ def verify_execution_code(run):
 
 
 def execute(store, run, attempt_id, lease_fd=None):
-    from .training_process import preflight, supervise
+    from .training_process import preflight, supervise, ExecutionLifecycle, CancellationObserved
     if lease_fd is None:
         # Direct internal callers retain the same ownership fence. Collision
         # occurs outside failure handling: never fail another owner's attempt.
         preflight()
         with store.runtime.lock("worker", inherited_lease=True) as lease:
             return execute(store, run, attempt_id, lease)
+    lifecycle = ExecutionLifecycle()
     try:
+        if store.cancellation_requested(run['id'], attempt_id):
+            raise CancellationObserved()
         body = training_request(json.loads(run["input_json"]))
         verify_execution_code(run)
         from .recipes import get_recipe
@@ -39,16 +42,20 @@ def execute(store, run, attempt_id, lease_fd=None):
         artifact_hash, evaluation, manifest = supervise(
             store.runtime, spec, body, attempt_id, json.loads(run["environment_json"]),
             EXECUTION_ENVIRONMENT, lease_fd,
-            lambda event, details: store.log(attempt_id, event, details), deadline)
+            lambda event, details: store.log(attempt_id, event, details), deadline,
+            cancellation_requested=lambda: store.cancellation_requested(run['id'], attempt_id),
+            lifecycle=lifecycle)
         verify_execution_code(run)
         store.register(run, attempt_id, artifact_hash, evaluation, manifest, deadline=deadline)
+    except CancellationObserved:
+        store.confirm_cancel(run['id'], attempt_id, lifecycle.proof)
     except Problem as exc:
-        store.fail(run['id'], attempt_id, exc.code)
+        store.fail(run['id'], attempt_id, exc.code, termination_proof=lifecycle.proof)
     except TrainingFailure as exc:
-        store.fail(run["id"], attempt_id, exc.code)
+        store.fail(run["id"], attempt_id, exc.code, termination_proof=lifecycle.proof)
     except Exception:
         # No raw exceptions: they can contain paths, user data or credentials.
-        store.fail(run["id"], attempt_id, "execution_failed")
+        store.fail(run["id"], attempt_id, "execution_failed", termination_proof=lifecycle.proof)
 
 
 def run_worker(runtime, once=False):

@@ -127,7 +127,45 @@ def validate_log(event, details):
         raise ValueError('Log limit')
 
 
-def supervise(runtime, spec, body, attempt, submission, loaded, lease_fd, log, deadline):
+class TerminationUncertain(BaseException):
+    """Fail closed: bypass ordinary job failures and exit the worker queue loop."""
+
+
+class CancellationObserved(Exception):
+    pass
+
+
+class ExecutionLifecycle:
+    """Proof from this invocation only, never inferred from a persisted PID."""
+    def __init__(self):
+        self.proof = 'never_started'
+
+
+def reap_owned(process, lifecycle):
+    """Bound our wait, not an OS guarantee. An unconfirmed child retains its lease."""
+    try:
+        if process.poll() is None:
+            try:
+                process.kill()
+            except (OSError, subprocess.SubprocessError):
+                # A concurrently exited child can still be reaped successfully.
+                pass
+        process.wait(timeout=5)
+        if process.returncode is None:
+            raise RuntimeError('No reaped exit status')
+    except BaseException:
+        lifecycle.proof = None
+        raise TerminationUncertain('Owned training child termination is unconfirmed') from None
+    lifecycle.proof = 'child_reaped'
+
+
+def supervise(runtime, spec, body, attempt, submission, loaded, lease_fd, log, deadline,
+              cancellation_requested=lambda: False, lifecycle=None):
+    lifecycle = lifecycle or ExecutionLifecycle()
+    def check_cancel():
+        if cancellation_requested():
+            raise CancellationObserved()
+    check_cancel()
     payload = encode({'home': str(runtime.home), 'body': body, 'attempt': attempt,
                       'submission': submission, 'loaded': loaded})
     if len(payload) > MAX_INPUT:
@@ -139,12 +177,17 @@ def supervise(runtime, spec, body, attempt, submission, loaded, lease_fd, log, d
         with tempfile.TemporaryFile() as request, tempfile.TemporaryDirectory(prefix='mp-training-cache-') as cache:
             request.write(payload)
             request.seek(0)
+            check_cancel()
+            # From the start of Popen until a handle is returned, do not assert
+            # never_started if process construction itself fails ambiguously.
+            lifecycle.proof = None
             process = subprocess.Popen(command(cache) + [str(os.getpid()), str(ROOT),
                 str(request.fileno()), str(write_fd), str(lease_fd), loaded['code_sha256']],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 close_fds=True, pass_fds=(request.fileno(), write_fd, lease_fd), cwd=ROOT,
                 env={'PATH': os.defpath, 'LANG': 'C.UTF-8', 'OPENBLAS_NUM_THREADS': '1',
                      'OMP_NUM_THREADS': '1', 'MKL_NUM_THREADS': '1'})
+            check_cancel()
             os.close(write_fd)
             write_fd = None
             total = logs = 0
@@ -152,6 +195,7 @@ def supervise(runtime, spec, body, attempt, submission, loaded, lease_fd, log, d
             with selectors.DefaultSelector() as selector:
                 selector.register(read_fd, selectors.EVENT_READ)
                 while selector.get_map():
+                    check_cancel()
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         raise TrainingFailure('training_timeout')
@@ -185,7 +229,16 @@ def supervise(runtime, spec, body, attempt, submission, loaded, lease_fd, log, d
                                 raise ValueError('Invalid frame')
                         if len(buffer) > MAX_FRAME:
                             raise TrainingFailure('training_protocol_limit')
-            process.wait(timeout=max(.001, deadline - time.monotonic()))
+            while process.poll() is None:
+                check_cancel()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TrainingFailure('training_timeout')
+                try:
+                    process.wait(timeout=min(.1, remaining))
+                except subprocess.TimeoutExpired:
+                    pass
+            check_cancel()
             if time.monotonic() >= deadline:
                 raise TrainingFailure('training_timeout')
             if process.returncode == 71:
@@ -215,11 +268,16 @@ def supervise(runtime, spec, body, attempt, submission, loaded, lease_fd, log, d
     except subprocess.TimeoutExpired:
         raise TrainingFailure('training_timeout') from None
     finally:
-        if process is not None:
-            if process.poll() is None:
-                process.kill()
-            # Never release lease or publish failure before owned child is dead.
-            process.wait()
-        os.close(read_fd)
-        if write_fd is not None:
-            os.close(write_fd)
+        try:
+            if process is not None:
+                reap_owned(process, lifecycle)
+            elif lifecycle.proof is None:
+                raise TerminationUncertain('Training process construction outcome is unconfirmed')
+        finally:
+            # Descriptor cleanup must not mask the fail-closed exception.
+            for fd in (read_fd, write_fd):
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
