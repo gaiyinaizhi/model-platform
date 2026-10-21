@@ -52,7 +52,7 @@ class ReportTests(unittest.TestCase):
         manifest={k:x for k,x in p.items() if k not in ('dataset','submission_environment')}
         manifest.update(dataset=binding,environment=p['submission_environment'],**{k:t[k] for k in ('recipe','contract','format','run_id','attempt_id','evaluation_id','model_version_id')},artifact_id=t['attempt_id'],class_names=binding['class_names'],training_loss_history=s['loss_history'],**{k:s[k] for k in ('training_seconds','export_seconds','evaluation_seconds')})
         with self.runtime.connection() as db:
-            db.execute('INSERT INTO runs VALUES(?,?,?,?,?,?,?,?,?,?)',(t['run_id'],'demo','fixture',schema.digest(body),schema.encode(body).decode(),schema.encode(p['submission_environment']).decode(),'succeeded',t['created_at'],t['finished_at']+.001,self.id))
+            db.execute('INSERT INTO runs VALUES(?,?,?,?,?,?,?,?,?,?)',(t['run_id'],'demo',t['run_id'],schema.digest(body),schema.encode(body).decode(),schema.encode(p['submission_environment']).decode(),'succeeded',t['created_at'],t['finished_at']+.001,self.id))
             db.execute('INSERT INTO run_dataset_bindings VALUES(?,?,?,?)',(t['run_id'],d['dataset_version_id'],d['content_sha256'],schema.encode(binding).decode()))
             db.execute('INSERT INTO attempts VALUES(?,?,?,?,?,?,?)',(t['attempt_id'],t['run_id'],1,'succeeded',t['started_at'],t['finished_at'],None))
             db.execute('INSERT INTO evaluations VALUES(?,?,?,?,?,?)',(t['evaluation_id'],t['attempt_id'],p['artifact_sha256'],d['evaluation_sha256'],schema.encode(ev).decode(),t['finished_at']-.002))

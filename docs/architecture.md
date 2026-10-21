@@ -131,3 +131,7 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 ## 数据集训练评估报告
 
 鉴权 `GET /models/{model_id}/training-report` 只读导出 `yolox-nano-dataset/v1` 成功模型的记录事实，单数据库快照核验关联，不读原始样本/权重、不写状态、不重新评估。协议 `training-evaluation-report/v1` 与独立导入模型报告严格分开，字段和校验边界见[训练报告契约](training-report-contract.md)。
+
+## 训练实验可信比较
+
+新增[训练比较只读契约](training-comparison.md)：复用训练报告跨表证据验证，两侧同快照、归属优先；评估内容/协议/实际执行环境一致才计算总体及逐类B−A差值。原POST比较保留legacy语义，不改独立COCO比较或训练报告格式，不构成质量门禁。
