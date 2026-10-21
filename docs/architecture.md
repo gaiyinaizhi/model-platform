@@ -127,3 +127,7 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 ## 失败训练有条件重试
 
 `POST /runs/{id}/retry` 可显式携带最新失败的 `expected_attempt_id`。归属、完整失败历史、三次上限、记录与当前源码摘要、共享容量均在同一 `BEGIN IMMEDIATE` 事务内核验；旧失败 ID 不能在新 attempt 再失败后触发额外执行。只排队原 run，不重写输入/环境/绑定、不产生新 attempt 或 schema 迁移。`GET /health` 声明 `conditional_training_retry_supported=true`；旧 `{}` 行为仍保留，但不保证按失败代际防重。完整错误、响应竞争和客户端不确定性要求见[有条件重试契约](conditional-training-retry.md)。
+
+## 数据集训练评估报告
+
+鉴权 `GET /models/{model_id}/training-report` 只读导出 `yolox-nano-dataset/v1` 成功模型的记录事实，单数据库快照核验关联，不读原始样本/权重、不写状态、不重新评估。协议 `training-evaluation-report/v1` 与独立导入模型报告严格分开，字段和校验边界见[训练报告契约](training-report-contract.md)。
