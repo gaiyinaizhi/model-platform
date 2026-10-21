@@ -96,7 +96,9 @@ API 固定监听 `127.0.0.1`。**不要修改绑定地址，也不要把开发 H
 | `dataset_missing` / `dataset_corrupt` | 依赖可用不保证数据可用。按对应数据指南准备/校验合法缓存或不可变数据集版本；Worker 不会自动联网补下载或静默绕过校验 |
 | `GET /runs/{id}` 返回 404 | 确认使用该对象所属租户的本地身份、正确 API 和运行目录；404 也可能是不存在，不能据此探测其他租户 |
 
-修复失败原因后可由操作者显式调用 `POST /runs/{id}/retry`、请求体 `{}`；仅 failed 可重排，最多 3 个 attempts，保留失败历史。代码或输入需变化时应创建新 run，不能把 retry 当作修改历史输入。只读 readiness 不会重排、领取或执行任何任务。
+修复失败原因后可由操作者显式调用 `POST /runs/{id}/retry`、请求体 `{"expected_attempt_id":"attempt_<最新失败记录的32位小写hex>"}`；仅完整失败历史且未达 3 次上限可重排，保留原 run、输入、环境和历史。接口能力由 `GET /health` 的 `conditional_training_retry_supported=true` 声明。当前源码摘要不符返回 `409 retry_code_changed`；需要改变代码或输入时应显式创建新 run，不能覆盖旧血缘。若恢复了原始源码且停止/重启 API 和 Worker，过去的 `execution_code_changed` 错误本身不永久禁止重试。
+
+旧请求体 `{}` 继续兼容，但不防止响应丢失后、快速再失败时重复重排。新客户端必须使用失败 attempt 前置条件；网络错误或 `409` 后只读刷新同一 run，不自动重发或偷偷采用新的失败 ID。受理 `202` 的详情可能已进入 running 或终态，不保证仍为 queued。详见[契约](conditional-training-retry.md)。只读 readiness 不会重排、领取或执行任何任务。
 
 ## 5. 验证范围
 

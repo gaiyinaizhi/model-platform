@@ -36,10 +36,10 @@ run 固定输入快照、摘要、配方、代码源码摘要、Python/平台环
 
 | 方法 / 路径 | 行为 |
 | --- | --- |
-| GET /health | API 状态、配方、预算和取消能力，不承诺 Worker 存活 |
+| GET /health | API 状态、配方、预算、取消和有条件训练重试能力，不承诺 Worker 存活 |
 | POST /runs | 必须 Idempotency-Key；同 tenant 同 key 同摘要返回同 run，不同摘要 409；首次 202，重放 200 |
 | GET /runs、GET /runs/{id} | 不返回原始数据；包含 attempt、日志、状态和 model_version_id |
-| POST /runs/{id}/retry | 仅 failed 可重排，保留历史，最多 3 attempts；其他状态 409 |
+| POST /runs/{id}/retry | 有条件请求绑定最新失败 attempt，保持原代码/输入并最多 3 attempts；旧 `{}` 兼容，详见[契约](conditional-training-retry.md) |
 | POST /runs/{id}/cancel | `{}` 撤销 queued → cancelled；重复取消200；running/failed/succeeded为409，不中断进程 |
 | GET /models、GET /models/{id} | 不可变技术清单、血缘、评估、资源 ID 和摘要，不暴露路径或权重 |
 | POST /deployments | 指定 model_version_id；可选 Idempotency-Key，首次202/重放200；持久化 desired=running 后后台启动 |
@@ -123,3 +123,7 @@ POST /runs 可选顶层 `recipe`，省略时仍为 logistic-regression/v1。新�
 ## 训练排队撤销
 
 新增 queued → cancelled 单向终态，领取/撤销事务互斥，保留历史与原提交幂等绑定。健康能力分开表示 `cancel_supported=false` 与 `queued_cancel_supported=true`；旧运行目录需要显式离线备份迁移，详情见[排队撤销契约与升级步骤](queued-training-cancellation.md)。独立评估与运行中训练不支持取消。
+
+## 失败训练有条件重试
+
+`POST /runs/{id}/retry` 可显式携带最新失败的 `expected_attempt_id`。归属、完整失败历史、三次上限、记录与当前源码摘要、共享容量均在同一 `BEGIN IMMEDIATE` 事务内核验；旧失败 ID 不能在新 attempt 再失败后触发额外执行。只排队原 run，不重写输入/环境/绑定、不产生新 attempt 或 schema 迁移。`GET /health` 声明 `conditional_training_retry_supported=true`；旧 `{}` 行为仍保留，但不保证按失败代际防重。完整错误、响应竞争和客户端不确定性要求见[有条件重试契约](conditional-training-retry.md)。
