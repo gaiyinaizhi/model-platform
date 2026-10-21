@@ -12,7 +12,7 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 
 ## 已实现
 
-- 新增[受监督训练执行](docs/supervised-training.md)：Linux 训练子进程、父 Worker 独占登记、有界日志/结果、父进程退出与重启租约隔离；这是运行中取消的执行基础，尚未开放运行中取消
+- 新增[受监督训练执行](docs/supervised-training.md)：Linux 训练子进程、父 Worker 独占登记、有界日志/结果、父进程退出与重启租约隔离；新增[可确认的运行中训练取消](docs/running-training-cancel.md)，必须显式离线迁移，待确认状态不等于已停止
 
 - 新增[独立评估记录只读比较](docs/evaluation-comparison-contract.md)：两条成功且完整性校验通过的记录，严格核对数据/类别/协议/代码/依赖/环境；兼容时返回 B−A 指标差值，不兼容时逐项说明原因。允许同一模型重复评估，不创建推理任务或生产发布许可
 
@@ -109,7 +109,7 @@ API / Worker 通过各自终端的 Ctrl+C 停止。API 正常退出会终结自�
 
 - **只适合可信本地操作者的小型 CPU 开发示例**：没有 TLS、成熟运维权限、独立 OS 用户、cgroup、容器、硬 CPU/RSS/GPU 配额；不同租户共用队列和逻辑预算，同一 OS 用户可读写运行文件
 - 进程分离和 API 技术对象隔离不是生产多租户安全沙箱；本机管理员可破坏磁盘文件，逻辑不可变不是 WORM 存储
-- 支持[取消尚未领取的训练排队](docs/queued-training-cancellation.md)，运行中取消仍不支持；旧运行目录需显式离线迁移和配套客户端升级。没有检查点恢复、自动训练重试、版本热切流、自动回滚或质量发布门槛；更新版本需新部署 ID
+- 支持[取消尚未领取的训练排队](docs/queued-training-cancellation.md)，并支持[可确认运行中取消](docs/running-training-cancel.md)；旧运行目录需显式离线迁移和配套客户端升级。没有检查点恢复、自动训练重试、版本热切流、自动回滚或质量发布门槛；更新版本需新部署 ID
 - serving 崩溃会撤销 ready，不在同一个 supervisor 生命周期自动重启；API 重启按 desired 状态重新验证启动
 - SQLite 单机运行，没有分布式队列、自动数据保留/清理、备份恢复验收或断电耐久性保证；未登记的孤儿产物不会被部署，也不会自动删除
 - 图像配方包括固定公开Fashion-MNIST灰度分类、Open Images Cat单类检测和有预算的 YOLO 数据集版本绑定多类别 CPU 检测；检测仅允许受限内联RGB预测；尚无设备转换包、机器人/无人机适配、任意外部模型导入、厂商 endpoint 或 Sluggard 接口；后续能力见 [路线图](docs/roadmap.md)

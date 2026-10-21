@@ -3,6 +3,7 @@ import collections
 import hashlib
 import hmac
 import json
+import re
 import threading
 import time
 from urllib.parse import urlsplit, parse_qsl
@@ -347,7 +348,7 @@ def make_handler(store, supervisor, auth):
                 return 200, {"recipes": public_catalog()}
             if method == "GET" and parts == ["health"]:
                 return 200, {"status": "ok", "recipe": RECIPE, "contract": CONTRACT, "cancel_supported": False,
-                             "queued_cancel_supported": True,
+                             "queued_cancel_supported": True, "running_cancel_supported": True,
                              "conditional_training_retry_supported": True,
                              "recipes": recipe_ids(),
                              "budgets": {"active_runs": MAX_ACTIVE_RUNS, "deployments": MAX_DEPLOYMENTS}}
@@ -388,6 +389,13 @@ def make_handler(store, supervisor, auth):
                         object_fields(self.body(), ())
                         store.cancel(tenant, object_id)
                         return 200, store.run(tenant, object_id)
+                    if action == "cancel-running":
+                        body = self.body()
+                        object_fields(body, ('expected_attempt_id',))
+                        expected = body['expected_attempt_id']
+                        if type(expected) is not str or not re.fullmatch(r'attempt_[0-9a-f]{32}', expected):
+                            raise Problem(400, 'invalid_input', 'Expected a running attempt ID')
+                        return store.cancel_running(tenant, object_id, expected)
                     if action == "retry":
                         body = self.body()
                         object_fields(body, (), ("expected_attempt_id",))

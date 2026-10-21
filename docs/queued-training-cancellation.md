@@ -10,7 +10,7 @@
 
 - queued → cancelled：200，返回普通 run 详情。只改变状态、updated_at，增加一条 cancel_queued 审计。
 - 已 cancelled：200，无时间戳或审计重复写入。
-- running：409 / cancel_conflict，明确不支持中断已运行的训练，不发送进程信号。
+- running：409 / cancel_conflict，此 queued-only 路由不支持中断已运行的训练，不发送进程信号；运行中操作使用单独的 cancel-running 路由。
 - succeeded、failed：409 / cancel_conflict，不改变状态。
 
 取消与 Worker 的领取、原有 retry 都在 BEGIN IMMEDIATE 事务内串行判定。Worker 先领取时取消失败；取消先提交时 Worker 不会再领取此 run。不在数据库提交前报告成功。
@@ -19,7 +19,7 @@ cancelled 是新的训练终态，不是 attempt 状态。未领取过的 run �
 
 取消后的记录仍在原租户历史中，queue.position=null、model_version_id=null，不计入排队/运行容量。原提交幂等键重放返回同一个 cancelled 记录；retry 拒绝 cancelled。重新运行必须由操作者显式使用新的提交键，不能因超时或不确定结果自动提交另一条任务。
 
-GET /health 保留 cancel_supported=false，另增 queued_cancel_supported=true。前者表示不支持通用/运行中取消，后者只表示排队撤销。旧后端缺少新字段时客户端必须按不可用处理。训练状态增加了 cancelled，严格枚举旧客户端需要同步升级；独立评估状态不变。
+GET /health 保留 cancel_supported=false，另增 queued_cancel_supported=true。前者表示不提供通用取消操作，后者只表示排队撤销。运行中取消是独立的 cancel-running 路由与 running_cancel_supported 能力位，见[阶段 2 契约](running-training-cancel.md)。旧后端缺少新字段时客户端必须按不可用处理。训练状态增加了 cancelled，严格枚举旧客户端需要同步升级；独立评估状态不变。
 
 ## 旧运行目录必须显式离线迁移
 

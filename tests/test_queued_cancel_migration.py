@@ -12,6 +12,8 @@ from model_platform.run_schema import (LEGACY_RUN_TABLE, RUN_TABLE, VERSION,
                                        normalize, verify)
 from model_platform.migrate_queued_cancel import migrate, _snapshot
 from scripts.demo import request_body
+from test_running_cancel_migration import legacy_attempts_fixture
+from model_platform.migrate_running_cancel import migrate as migrate_running_cancel
 
 
 class QueueMigrationTests(unittest.TestCase):
@@ -37,6 +39,8 @@ class QueueMigrationTests(unittest.TestCase):
         self.downgrade_fixture()
 
     def downgrade_fixture(self):
+        # The queued migration fixture predates running cancellation too.
+        legacy_attempts_fixture(self.runtime)
         with self.runtime.connection() as db:
             db.execute('PRAGMA foreign_keys=OFF')
             db.execute('BEGIN IMMEDIATE')
@@ -71,6 +75,7 @@ class QueueMigrationTests(unittest.TestCase):
         self.assertEqual(before.pop('schema_migrations'), after['schema_migrations'][:1])
         after.pop('schema_migrations')
         self.assertEqual(before, after)
+        migrate_running_cancel(self.runtime)
         current = Store(self.runtime)
         third = current.submit('demo', 'third', request_body())[0]
         page = current.list_page('runs', 'demo', cursor=cursor)
@@ -96,6 +101,7 @@ class QueueMigrationTests(unittest.TestCase):
         after = self.snapshot()
         for table in ('runs', 'attempts', 'logs', 'models', 'evaluations'):
             self.assertEqual(before[table], after[table])
+        migrate_running_cancel(self.runtime)
         current = Store(self.runtime)
         self.assertEqual(current.recover_worker(), 1)
         row = current.run('demo', self.queued)
@@ -114,6 +120,7 @@ class QueueMigrationTests(unittest.TestCase):
         before = self.snapshot()
         migrate(self.runtime)
         self.assertEqual(before['model_evaluations'], self.snapshot()['model_evaluations'])
+        migrate_running_cancel(self.runtime)
         evaluations = ModelEvaluationStore(Store(self.runtime))
         self.assertEqual(evaluations.recover(), 1)
         with self.runtime.connection() as db:
