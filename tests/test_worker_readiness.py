@@ -154,7 +154,7 @@ class WorkerReadinessTests(unittest.TestCase):
         run_id, _ = self.store.submit('demo', 'fashion', fashion_body())
         from model_platform.algorithm import TrainingFailure
         with patch('model_platform.worker.probe_dependencies', return_value={}), \
-                patch('model_platform.recipe_execution.execute_fashion', side_effect=TrainingFailure('optional_dependencies_missing')):
+                patch('model_platform.training_process.supervise', side_effect=TrainingFailure('optional_dependencies_missing')):
             run_worker(self.runtime, once=True)
         run = self.store.run('demo', run_id)
         self.assertEqual(run['status'], 'failed')

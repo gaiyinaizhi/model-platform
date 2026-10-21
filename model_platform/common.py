@@ -151,16 +151,19 @@ class Runtime:
             conn.close()
 
     @contextlib.contextmanager
-    def lock(self, name):
+    def lock(self, name, *, inherited_lease=False):
         with (self.home / f"{name}.lock").open("a") as handle:
             try:
                 fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise RuntimeError(f"Another {name} owns this runtime") from None
             try:
-                yield
+                yield handle.fileno()
             finally:
-                fcntl.flock(handle, fcntl.LOCK_UN)
+                # An inherited worker OFD must remain locked until its last
+                # holder closes. Explicit unlock would release it for children.
+                if not inherited_lease:
+                    fcntl.flock(handle, fcntl.LOCK_UN)
 
     def artifact(self, attempt_id):
         if not isinstance(attempt_id, str) or not ID.fullmatch(attempt_id):

@@ -1,4 +1,5 @@
 """SQLite is the sole writer authority for technical records and queue state."""
+import time
 import json
 import hashlib
 import uuid
@@ -320,12 +321,17 @@ class Store:
     def fail(self, run_id, attempt_id, code):
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            db.execute("UPDATE attempts SET status='failed',error_code=?,finished_at=? WHERE id=? AND status='running'",
-                       (code, now(), attempt_id))
+            changed = db.execute("UPDATE attempts SET status='failed',error_code=?,finished_at=? WHERE id=? AND status='running'",
+                       (code, now(), attempt_id)).rowcount
             db.execute("UPDATE runs SET status='failed',updated_at=? WHERE id=? AND status='running'", (now(), run_id))
-        self.log(attempt_id, "failed", {"code": code})
+        if changed:
+            self.log(attempt_id, "failed", {"code": code})
 
-    def register(self, run, attempt_id, artifact_hash, evaluation, manifest):
+    def register(self, run, attempt_id, artifact_hash, evaluation, manifest, *, deadline=None):
+        def check_deadline():
+            if deadline is not None and time.monotonic() >= deadline:
+                raise Problem(409, "training_timeout", "Training deadline exceeded before publication")
+        check_deadline()
         binding = self.dataset_binding(run)
         if binding is not None:
             from .dataset_detection import compatibility, FIXED_CONFIG
@@ -348,6 +354,7 @@ class Store:
         model_id, eval_id = identifier("model"), identifier("eval")
         with self.runtime.connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            check_deadline()
             owned = db.execute("SELECT status FROM attempts WHERE id=? AND run_id=?", (attempt_id, run["id"])).fetchone()
             if not owned or owned[0] != "running":
                 raise RuntimeError("Attempt no longer owns publication")
@@ -360,6 +367,7 @@ class Store:
             db.execute("UPDATE attempts SET status='succeeded',finished_at=? WHERE id=?", (now(), attempt_id))
             db.execute("UPDATE runs SET status='succeeded',model_version_id=?,updated_at=? WHERE id=?", (model_id, now(), run["id"]))
             self.audit(db, run["tenant"], "register_model", model_id)
+            check_deadline()
         self.log(attempt_id, "registered", {"model_version_id": model_id})
         return model_id
 

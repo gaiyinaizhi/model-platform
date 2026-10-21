@@ -17,7 +17,14 @@ def verify_execution_code(run):
         raise TrainingFailure("execution_code_changed")
 
 
-def execute(store, run, attempt_id):
+def execute(store, run, attempt_id, lease_fd=None):
+    from .training_process import preflight, supervise
+    if lease_fd is None:
+        # Direct internal callers retain the same ownership fence. Collision
+        # occurs outside failure handling: never fail another owner's attempt.
+        preflight()
+        with store.runtime.lock("worker", inherited_lease=True) as lease:
+            return execute(store, run, attempt_id, lease)
     try:
         body = training_request(json.loads(run["input_json"]))
         verify_execution_code(run)
@@ -27,12 +34,14 @@ def execute(store, run, attempt_id):
         if binding is not None:
             body = dict(body, _dataset_binding=binding, _dataset_tenant=run['tenant'])
         store.log(attempt_id, "started", {"recipe": spec.id})
-        artifact_hash, evaluation, manifest = spec.execute(
-            spec, store.runtime, body, store.runtime.artifact(attempt_id),
-            lambda event, details: store.log(attempt_id, event, details),
-            EXECUTION_ENVIRONMENT, json.loads(run["environment_json"]))
+        deadline = time.monotonic() + (spec.budgets.training_seconds +
+            spec.budgets.export_seconds + spec.budgets.evaluation_seconds + 30)
+        artifact_hash, evaluation, manifest = supervise(
+            store.runtime, spec, body, attempt_id, json.loads(run["environment_json"]),
+            EXECUTION_ENVIRONMENT, lease_fd,
+            lambda event, details: store.log(attempt_id, event, details), deadline)
         verify_execution_code(run)
-        store.register(run, attempt_id, artifact_hash, evaluation, manifest)
+        store.register(run, attempt_id, artifact_hash, evaluation, manifest, deadline=deadline)
     except Problem as exc:
         store.fail(run['id'], attempt_id, exc.code)
     except TrainingFailure as exc:
@@ -43,7 +52,9 @@ def execute(store, run, attempt_id):
 
 
 def run_worker(runtime, once=False):
-    with runtime.lock("worker"):
+    from .training_process import preflight
+    preflight()
+    with runtime.lock("worker", inherited_lease=True) as lease_fd:
         store = Store(runtime)
         from .model_evaluations import ModelEvaluationStore, execute as execute_evaluation
         evaluations = ModelEvaluationStore(store)
@@ -63,7 +74,7 @@ def run_worker(runtime, once=False):
                 job = store.claim()
                 if job:
                     heartbeat.set_state("busy")
-                    execute(store, *job)
+                    execute(store, *job, lease_fd=lease_fd)
                     heartbeat.set_state("idle")
                 if once:
                     return

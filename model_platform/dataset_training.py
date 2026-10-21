@@ -19,7 +19,7 @@ def train_export(spec, runtime, body, path, log, execution_environment, submissi
 
     recipe.validate_request(body['dataset'], body['config'])
     binding = body['_dataset_binding']
-    datasets = DatasetStore(runtime)
+    datasets = DatasetStore(runtime, read_only=True)
 
     def verified():
         current = recipe.bind_version(datasets, body['_dataset_tenant'], binding['dataset_version_id'])

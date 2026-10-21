@@ -363,7 +363,10 @@ from model_platform.common import Runtime
 from model_platform.worker import run_worker
 run_worker(Runtime(), once=True)
 """
-        result = subprocess.run([sys.executable, "-c", script], env=self.env, cwd=test_platform.ROOT,
+        # -S is preserved by the supervised child. Parent monkeypatches alone
+        # intentionally do not cross the fresh-interpreter boundary; disable
+        # optional site packages in both processes rather than fake a result.
+        result = subprocess.run([sys.executable, "-S", "-c", script], env=self.env, cwd=test_platform.ROOT,
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -397,7 +400,10 @@ runtime = Runtime()
 with runtime.lock('worker'):
     assert Store(runtime).claim() is not None
 """
-        result = subprocess.run([sys.executable, "-c", script], env=self.env, cwd=test_platform.ROOT,
+        # -S is preserved by the supervised child. Parent monkeypatches alone
+        # intentionally do not cross the fresh-interpreter boundary; disable
+        # optional site packages in both processes rather than fake a result.
+        result = subprocess.run([sys.executable, "-S", "-c", script], env=self.env, cwd=test_platform.ROOT,
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         binary = self.submit(request_body(), "base-after-ml-failure")
