@@ -9,9 +9,6 @@ from pathlib import Path
 import re
 import signal
 import stat
-import subprocess
-import sys
-import threading
 import time
 import uuid
 
@@ -576,91 +573,35 @@ def measure(evaluations, row):
     return {'result': result, 'predictions': evidence}
 
 
-def execute(evaluations, row, loaded_environment, timeout=WALL_SECONDS):
-    process = None
+def execute(evaluations, row, loaded_environment, timeout=WALL_SECONDS, *, lease_fd=None):
+    from .evaluation_process import supervise, ExecutionLifecycle, TerminationUncertain
+    from .training_process import preflight
+    if lease_fd is None:
+        # Collision is outside failure handling: never mutate another owner's job.
+        preflight()
+        with evaluations.runtime.lock('worker', inherited_lease=True) as lease:
+            return execute(evaluations, row, loaded_environment, timeout, lease_fd=lease)
+    lifecycle = ExecutionLifecycle()
     deadline = time.monotonic() + timeout
+
+    def require_termination(*, result=False):
+        if (lifecycle.proof != 'child_reaped' if result
+                else lifecycle.proof not in ('never_started', 'child_reaped')):
+            raise TerminationUncertain('Evaluation child termination is unconfirmed')
+
     try:
         binding = evaluations.verify_binding(row)
         evaluations.verify_code(binding, loaded_environment)
-        env = dict(os.environ, OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
-        process = subprocess.Popen([sys.executable, '-m', 'model_platform.model_evaluations',
-            '--evaluate', str(evaluations.runtime.home), row['id'], str(os.getpid())],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env,
-            cwd=str(Path(__file__).resolve().parents[1]))
-        # Read incrementally, with a watchdog killing the exact child process.
-        timed_out = threading.Event()
-        def stop_child():
-            timed_out.set()
-            if process.poll() is None:
-                process.kill()
-        timer = threading.Timer(max(0, deadline - time.monotonic()), stop_child)
-        timer.start()
-        try:
-            raw = process.stdout.read(MAX_CHILD_BYTES + 1)
-            if len(raw) > MAX_CHILD_BYTES:
-                process.kill()
-                raise Problem(409, 'evaluation_result_limit', 'Evaluator result exceeds bounded channel')
-            process.wait()
-        finally:
-            timer.cancel()
-        if timed_out.is_set() or process.returncode in (-signal.SIGALRM, -signal.SIGXCPU):
-            raise Problem(409, 'evaluation_timeout', 'Evaluation deadline exceeded')
-        if process.returncode != 0:
-            raise Problem(409, 'evaluation_failed', 'Isolated evaluation did not finish successfully')
-        payload = json.loads(raw)
-        if payload.get('error_code'):
-            raise Problem(409, payload['error_code'], 'Isolated evaluation failed')
+        payload = supervise(evaluations.runtime, row['id'], loaded_environment, lease_fd,
+                            deadline, lifecycle=lifecycle)
+        require_termination(result=True)
         evaluations.verify_code(binding, loaded_environment)
         if time.monotonic() >= deadline:
             raise Problem(409, 'evaluation_timeout', 'Evaluation deadline exceeded')
         evaluations.succeed(row, payload['result'], payload['predictions'], deadline=deadline)
     except Problem as exc:
+        require_termination()
         evaluations.fail(row['id'], exc.code)
     except Exception:
+        require_termination()
         evaluations.fail(row['id'], 'evaluation_failed')
-    finally:
-        if process is not None:
-            if process.poll() is None:
-                process.kill()
-            process.wait()
-            if process.stdout:
-                process.stdout.close()
-
-
-def _child(home, item_id, parent):
-    import resource
-    resource.setrlimit(resource.RLIMIT_AS, (ADDRESS_BYTES, ADDRESS_BYTES))
-    resource.setrlimit(resource.RLIMIT_CPU, (CPU_SECONDS, CPU_SECONDS))
-    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    def watch_parent():
-        while True:
-            if os.getppid() != parent:
-                os._exit(3)
-            time.sleep(.2)
-    threading.Thread(target=watch_parent, daemon=True).start()
-    from .common import Runtime
-    from .store import Store
-    runtime = Runtime(home)
-    evaluations = ModelEvaluationStore(Store(runtime))
-    try:
-        with runtime.connection() as db:
-            row = db.execute('SELECT * FROM model_evaluations WHERE id=? AND status=\'running\'', (item_id,)).fetchone()
-        if not row:
-            raise Problem(409, 'evaluation_integrity', 'Evaluation is not running')
-        payload = measure(evaluations, row)
-    except Problem as exc:
-        payload = {'error_code': exc.code}
-    except ImportError:
-        payload = {'error_code': 'evaluation_dependencies_missing'}
-    except Exception:
-        payload = {'error_code': 'evaluation_failed'}
-    raw = encode(payload)
-    if len(raw) > MAX_CHILD_BYTES:
-        raw = encode({'error_code': 'evaluation_result_limit'})
-    sys.stdout.buffer.write(raw)
-
-
-if __name__ == '__main__':
-    if len(sys.argv) != 5 or sys.argv[1] != '--evaluate':
-        raise SystemExit(2)
-    _child(sys.argv[2], sys.argv[3], int(sys.argv[4]))

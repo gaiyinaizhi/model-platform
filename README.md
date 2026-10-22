@@ -12,6 +12,8 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 
 ## 已实现
 
+- 新增[独立评估子进程监督](docs/independent-evaluation-supervision.md)：继承 Worker 租约、内核父死终止、只读子进程与确认回收后登记终态；不改变现有评估协议，不新增数据集训练模型独立评估。
+
 - 新增[稳定模型服务阶段 1](docs/model-services.md)：对已 ready 的数据集部署提供固定入口、显式 CAS 切换和回退、不可变操作快照；仅后端，未接入 VisionLab UI，旧运行目录需显式离线迁移。
 
 - 新增[受监督训练执行](docs/supervised-training.md)：Linux 训练子进程、父 Worker 独占登记、有界日志/结果、父进程退出与重启租约隔离；新增[可确认的运行中训练取消](docs/running-training-cancel.md)，必须显式离线迁移，待确认状态不等于已停止

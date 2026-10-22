@@ -14,6 +14,7 @@ from unittest import mock
 from model_platform.common import Runtime, Problem, digest, encode, environment
 from model_platform.store import Store
 from model_platform import model_evaluations as module
+from model_platform import evaluation_process as supervisor
 from model_platform.model_evaluations import ModelEvaluationStore, PROTOCOL
 from model_platform.model_imports import ModelImportStore, CATALOG_ID
 from model_platform import model_imports
@@ -260,13 +261,13 @@ class QueueTests(unittest.TestCase):
 
     def test_source_and_environment_changes_fail_before_child_start(self):
         item=self.create(); row=self.evaluations.claim()
-        with mock.patch.object(module.subprocess,'Popen') as process:
+        with mock.patch.object(supervisor,'supervise') as process:
             module.execute(self.evaluations,row,dict(environment(),code_sha256='f'*64))
             process.assert_not_called()
         self.assertEqual(self.evaluations.get('demo',item['id'])['error_code'],'execution_code_changed')
         item=self.create('environment'); row=self.evaluations.claim()
         with mock.patch.object(module,'installed_versions',return_value=dict(self.versions,numpy='changed')):
-            with mock.patch.object(module.subprocess,'Popen') as process:
+            with mock.patch.object(supervisor,'supervise') as process:
                 module.execute(self.evaluations,row,environment()); process.assert_not_called()
         self.assertEqual(self.evaluations.get('demo',item['id'])['error_code'],'execution_environment_changed')
 
@@ -275,23 +276,40 @@ class QueueTests(unittest.TestCase):
         actual=subprocess.Popen
         children=[]
         def delayed(*args,**kwargs):
-            child=actual([sys.executable,'-c','import time; time.sleep(60)'],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+            child=actual(*args,**kwargs)
             children.append(child); return child
         started=time.monotonic()
-        with mock.patch.object(module.subprocess,'Popen',side_effect=delayed):
-            module.execute(self.evaluations,row,environment(),timeout=.15)
+        with self.runtime.lock('worker', inherited_lease=True) as lease, \
+                mock.patch.object(supervisor,'command',return_value=[sys.executable,'-c','import time; time.sleep(60)']), \
+                mock.patch.object(supervisor.subprocess,'Popen',side_effect=delayed):
+            module.execute(self.evaluations,row,environment(),timeout=.15,lease_fd=lease)
         self.assertLess(time.monotonic()-started,3)
         self.assertIsNotNone(children[0].poll())
         self.assertEqual(self.evaluations.get('demo',item['id'])['error_code'],'evaluation_timeout')
 
     def test_orphan_evaluator_exits_when_its_parent_dies(self):
         item=self.create(); self.evaluations.claim()
-        child_code = ("import os,time; from model_platform import model_evaluations as m; "
-                      "m.measure=lambda *args: time.sleep(60); "
-                      "m._child(" + repr(str(self.runtime.home)) + "," + repr(item['id']) + ",os.getppid())")
-        parent_code = ("import subprocess,sys,time; p=subprocess.Popen([sys.executable,'-c',"
-                       + repr(child_code) + "],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
-                       "print(p.pid,flush=True); time.sleep(60)")
+        # Exercise the actual early kernel guard and inherited lease, replacing
+        # only the test-owned measurement body after verified project imports.
+        bootstrap = supervisor.BOOTSTRAP.replace(
+            "main(int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5]), sys.argv[6])",
+            "import time; os.write(int(sys.argv[4]), b'ready'); time.sleep(60)")
+        parent_code = '''import os, subprocess, sys, tempfile, time
+from model_platform.common import Runtime, environment
+from model_platform import evaluation_process as supervisor
+runtime = Runtime(HOME)
+with runtime.lock('worker', inherited_lease=True) as lease, tempfile.TemporaryFile() as request:
+    read_fd, write_fd = os.pipe()
+    args = supervisor.command('/tmp')
+    args[-1] = BOOTSTRAP
+    p = subprocess.Popen(args + [str(os.getpid()), str(supervisor.ROOT),
+        str(request.fileno()), str(write_fd), str(lease), environment()['code_sha256']],
+        pass_fds=(request.fileno(), write_fd, lease), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    os.close(write_fd)
+    assert os.read(read_fd, 5) == b'ready'
+    print(p.pid, flush=True)
+    time.sleep(60)
+'''.replace('HOME', repr(str(self.runtime.home))).replace('BOOTSTRAP', repr(bootstrap))
         parent=subprocess.Popen([sys.executable,'-c',parent_code],stdout=subprocess.PIPE,text=True)
         try:
             pid=int(parent.stdout.readline().strip()); time.sleep(.2)
