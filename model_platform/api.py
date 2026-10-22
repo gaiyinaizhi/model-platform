@@ -61,6 +61,8 @@ def make_handler(store, supervisor, auth):
     imports = ModelImportStore(store)
     from .model_evaluations import ModelEvaluationStore
     evaluations = ModelEvaluationStore(store)
+    from .model_services import ServiceManager
+    services = ServiceManager(store, supervisor)
 
     class Handler(JsonHandler):
         def do_GET(self):
@@ -188,7 +190,7 @@ def make_handler(store, supervisor, auth):
                         pass
                     return
                 if url.query:
-                    if method != "GET" or len(parts) != 1 or parts[0] not in ("runs", "models", "deployments", "model-evaluations", "model-evaluation-comparisons"):
+                    if method != "GET" or len(parts) != 1 or parts[0] not in ("runs", "models", "deployments", "services", "model-evaluations", "model-evaluation-comparisons"):
                         raise Problem(400, "invalid_input", "Query parameters unsupported on this route")
                     if len(url.query) > 2200:
                         raise Problem(400, "invalid_input", "Query too long")
@@ -214,8 +216,10 @@ def make_handler(store, supervisor, auth):
                     limit = query.get("limit")
                     if limit is not None and (not limit.isascii() or not limit.isdecimal() or not 1 <= len(limit) <= 3):
                         raise Problem(400, "invalid_input", "Limit must be 1..100")
-                    status, result = 200, store.list_page(parts[0], tenant,
+                    status, result = 200, (services.list_page(tenant,
                         int(limit) if limit is not None else None, query.get("cursor"))
+                        if parts[0] == "services" else store.list_page(parts[0], tenant,
+                        int(limit) if limit is not None else None, query.get("cursor")))
                 else:
                     status, result = self.route(method, parts, tenant)
                 if result is not None:
@@ -349,9 +353,35 @@ def make_handler(store, supervisor, auth):
             if method == "GET" and parts == ["health"]:
                 return 200, {"status": "ok", "recipe": RECIPE, "contract": CONTRACT, "cancel_supported": False,
                              "queued_cancel_supported": True, "running_cancel_supported": True,
-                             "conditional_training_retry_supported": True,
+                             "conditional_training_retry_supported": True, "model_services_supported": True,
                              "recipes": recipe_ids(),
                              "budgets": {"active_runs": MAX_ACTIVE_RUNS, "deployments": MAX_DEPLOYMENTS}}
+            if parts == ["services"]:
+                if method == "GET":
+                    return 200, {"ids": services.list_ids(tenant), "limit": 100}
+                if method == "POST":
+                    keys = self.headers.get_all("Idempotency-Key", [])
+                    if len(keys) != 1:
+                        raise Problem(400, "invalid_input", "One Idempotency-Key required")
+                    key = text_value(keys[0], "Idempotency-Key", 128)
+                    result, created = services.create(tenant, key, self.body())
+                    return (201 if created else 200), result
+            if len(parts) == 2 and parts[0] == "services" and method == "GET":
+                return 200, services.query(tenant, parts[1])
+            if len(parts) == 3 and parts[0] == "services" and method == "POST":
+                # Ownership precedes request-body details, including malformed JSON.
+                services.owned(tenant, parts[1])
+                if parts[2] == "switch":
+                    keys = self.headers.get_all("Idempotency-Key", [])
+                    if len(keys) != 1:
+                        raise Problem(400, "invalid_input", "One Idempotency-Key required")
+                    key = text_value(keys[0], "Idempotency-Key", 128)
+                    result, _ = services.switch(tenant, parts[1], key, self.body())
+                    return 200, result
+                if parts[2] == "predict":
+                    body = self.body()
+                    object_fields(body, ("features",))
+                    return 200, services.predict(tenant, parts[1], body["features"])
             if len(parts) == 1 and parts[0] in ("runs", "models", "deployments"):
                 if method == "GET":
                     return 200, {"ids": store.list_ids(parts[0], tenant), "limit": 100}

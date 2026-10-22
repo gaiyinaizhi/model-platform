@@ -240,21 +240,22 @@ class CursorKeyTests(unittest.TestCase):
             self.assertEqual(len(second['ids']), 1)
             self.assertIsNone(second['next_cursor'])
 
-    def test_legacy_deployment_schema_migration_preserves_technical_data(self):
+    def test_partial_deployment_schema_is_rejected_without_repair(self):
         with tempfile.TemporaryDirectory() as directory:
             runtime = Runtime(directory)
-            # Keep the versioned queue schema complete. This fixture targets
-            # the older additive deployment-key/index upgrade, not queue migration.
+            # A versioned current runtime must not silently repair a partial
+            # predecessor schema, even for historically additive objects.
             Store(runtime)
             with runtime.connection() as db:
                 db.execute('DROP TABLE deployment_keys')
                 db.execute('DROP INDEX models_history')
                 db.execute('DROP INDEX deployments_history')
-                before = db.execute("SELECT sql FROM sqlite_master WHERE name='models'").fetchone()[0]
-            Store(runtime)
+                before = list(db.iterdump())
+            with mock.patch('model_platform.store.cursor_key', side_effect=AssertionError('no cursor write')):
+                with self.assertRaisesRegex(RuntimeError, 'schema object'):
+                    Store(runtime)
             with runtime.connection() as db:
-                self.assertEqual(db.execute("SELECT sql FROM sqlite_master WHERE name='models'").fetchone()[0], before)
-                self.assertIsNotNone(db.execute("SELECT name FROM sqlite_master WHERE name='deployment_keys'").fetchone())
-                for name in ('models_history', 'deployments_history'):
-                    self.assertIsNotNone(db.execute(
-                        "SELECT name FROM sqlite_master WHERE type='index' AND name=?", (name,)).fetchone())
+                self.assertEqual(list(db.iterdump()), before)
+                for name in ('deployment_keys', 'models_history', 'deployments_history'):
+                    self.assertIsNone(db.execute(
+                        "SELECT name FROM sqlite_master WHERE name=?", (name,)).fetchone())

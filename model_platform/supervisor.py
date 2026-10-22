@@ -136,6 +136,9 @@ class Supervisor:
             instance = self.instances.get(deployment_id)
             if row["desired"] == "running" and instance:
                 self._probe(deployment_id, instance)
+            elif row["desired"] == "running" and row["observed"] == "ready":
+                # A persisted observation is not evidence of a live owned instance.
+                self.store.observe(deployment_id, "unavailable", "not_ready")
             return self.store.deployment(tenant, deployment_id)
 
     def predict(self, tenant, deployment_id, xs):

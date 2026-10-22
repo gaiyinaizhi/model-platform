@@ -14,6 +14,8 @@ from model_platform.store import Store
 from model_platform.model_imports import ModelImportStore, CATALOG_ID, CATALOG_REVISION, artifact_path
 from model_platform import model_imports as imports
 from model_platform.migrate_imports import migrate
+from model_platform.migrate_services import migrate as migrate_services
+from model_platform.service_schema import TABLES as SERVICE_TABLES, VERSION as SERVICE_VERSION
 from scripts.demo import request_body
 
 
@@ -177,13 +179,29 @@ class MigrationTests(unittest.TestCase):
         with self.runtime.connection() as db:
             db.execute('PRAGMA foreign_keys=OFF')
             db.execute('BEGIN IMMEDIATE')
+            # The historical fixture predates services; keep later markers and
+            # objects out, and preserve the original model immutability guards.
+            for table in reversed(SERVICE_TABLES):
+                db.execute('DROP TABLE ' + table)
+            db.execute('DELETE FROM schema_migrations WHERE version=?', (SERVICE_VERSION,))
+            model_objects = [row[0] for row in db.execute(
+                "SELECT sql FROM sqlite_master WHERE type IN ('index','trigger') AND tbl_name='models' AND sql IS NOT NULL")]
             db.execute('CREATE TABLE old_models (id TEXT PRIMARY KEY, tenant TEXT NOT NULL, run_id TEXT NOT NULL UNIQUE REFERENCES runs(id), attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(id), evaluation_id TEXT NOT NULL UNIQUE REFERENCES evaluations(id), artifact_sha256 TEXT NOT NULL, manifest_json TEXT NOT NULL, created_at REAL NOT NULL)')
             db.execute('INSERT INTO old_models SELECT id,tenant,run_id,attempt_id,evaluation_id,artifact_sha256,manifest_json,created_at FROM models')
             db.execute('UPDATE old_models SET rowid=41')
             db.execute('DROP TABLE models')
             db.execute('ALTER TABLE old_models RENAME TO models')
+            for sql in model_objects:
+                db.execute(sql)
             db.execute("DELETE FROM schema_migrations WHERE version='imported-origin/v1'")
-        self.store = Store(self.runtime)
+            before = list(db.iterdump())
+        # Do not use current startup as an implicit old-schema repair. The
+        # retained test-only Store reference is solely for legacy fixture writes.
+        with mock.patch('model_platform.store.cursor_key', side_effect=AssertionError('no cursor write')):
+            with self.assertRaises(RuntimeError):
+                Store(self.runtime)
+        with self.runtime.connection() as db:
+            self.assertEqual(list(db.iterdump()), before)
 
     def test_migration_preserves_bytes_links_rowids_and_replays(self):
         with self.runtime.connection() as db:
@@ -198,6 +216,8 @@ class MigrationTests(unittest.TestCase):
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
             with self.assertRaises(sqlite3.IntegrityError):
                 db.execute('DELETE FROM models')
+        self.assertTrue(migrate_services(self.runtime))
+        self.store = Store(self.runtime)
         self.assertEqual(self.store.submit_deployment('demo', self.mid, 'legacy-deployment'), (self.did, False))
 
     def test_history_cursor_survives_migration_and_new_inserts(self):
@@ -207,6 +227,8 @@ class MigrationTests(unittest.TestCase):
         first = self.store.list_page('models', 'demo', limit=1)
         self.assertIsNotNone(first['next_cursor'])
         migrate(self.runtime)
+        self.assertTrue(migrate_services(self.runtime))
+        self.store = Store(self.runtime)
         self.store.submit('demo', 'third', request_body())
         run, attempt = self.store.claim()
         newest = self.store.register(run, attempt, 'e'*64, {'dataset_sha256':'f'*64}, {'contract':'fixture','format':'fixture'})

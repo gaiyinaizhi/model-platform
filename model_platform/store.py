@@ -15,6 +15,9 @@ from .run_schema import RUN_TABLE, VERSION as QUEUE_SCHEMA_VERSION, startup_chec
 from .running_cancel_schema import (ATTEMPT_TABLE, SCHEMA as CANCEL_SCHEMA,
     VERSION as CANCEL_SCHEMA_VERSION, startup_check as cancel_startup_check, verify as verify_cancel_schema)
 
+from .service_schema import (SCHEMA as SERVICE_SCHEMA, VERSION as SERVICE_SCHEMA_VERSION,
+    startup_check as service_startup_check, verify as verify_service_schema)
+
 SCHEMA = IMPORT_SCHEMA + """
 PRAGMA journal_mode=WAL;
 """ + RUN_TABLE.format(name="IF NOT EXISTS runs") + ";\n" + """
@@ -72,17 +75,19 @@ class Store:
         with runtime.connection() as db:
             fresh_runs = startup_check(db)
             cancel_startup_check(db)
+            service_startup_check(db)
         self.cursor_key = cursor_key(runtime.home)
         with runtime.connection() as db:
             fresh = not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='models'").fetchone()
             from .model_evaluations import SCHEMA as EVALUATION_SCHEMA
-            db.executescript(SCHEMA + EVALUATION_SCHEMA)
+            db.executescript(SCHEMA + EVALUATION_SCHEMA + SERVICE_SCHEMA)
             if fresh:
                 db.execute('CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY)')
                 db.execute("INSERT OR IGNORE INTO schema_migrations VALUES('imported-origin/v1')")
             if fresh_runs:
                 db.execute('INSERT OR IGNORE INTO schema_migrations VALUES(?)', (QUEUE_SCHEMA_VERSION,))
                 db.execute('INSERT OR IGNORE INTO schema_migrations VALUES(?)', (CANCEL_SCHEMA_VERSION,))
+                db.execute('INSERT OR IGNORE INTO schema_migrations VALUES(?)', (SERVICE_SCHEMA_VERSION,))
             for table in ("models", "evaluations"):
                 for action in ("UPDATE", "DELETE"):
                     db.execute(f"CREATE TRIGGER IF NOT EXISTS {table}_{action.lower()}_immutable "
@@ -90,6 +95,7 @@ class Store:
                                "SELECT RAISE(ABORT,'technical records are immutable'); END")
             verify_queue_schema(db)
             verify_cancel_schema(db)
+            verify_service_schema(db)
 
     @staticmethod
     def audit(db, tenant, action, object_id):
