@@ -73,7 +73,7 @@ def run_worker(runtime, once=False):
                 evaluation = evaluations.claim()
                 if evaluation:
                     heartbeat.set_state("busy")
-                    execute_evaluation(evaluations, evaluation, EXECUTION_ENVIRONMENT)
+                    execute_evaluation(evaluations, evaluation, EXECUTION_ENVIRONMENT, lease_fd=lease_fd)
                     heartbeat.set_state("idle")
                     if once:
                         return

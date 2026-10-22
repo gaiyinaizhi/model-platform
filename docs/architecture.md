@@ -143,3 +143,8 @@ Linux 训练子进程采用内核父死信号与共享 close-only Worker 租约�
 ## 运行中训练取消增量
 
 [精确 API、离线 schema 迁移与停止证明](running-training-cancel.md)：请求绑定当前 attempt，pending 仍为 running；模型登记与取消意图事务仲裁，确认仅在本次无子进程、已回收子进程或后继 Worker 实际取得继承租约后发生。取消终态为 run/attempt cancelled，保留全部失败历史。新版本启动不自动迁移旧库。独立评估与 serving 不在此增量范围。
+
+
+## 独立评估执行监督
+
+现有导入模型独立评估采用[独立评估子进程监督](independent-evaluation-supervision.md)：受控直接子进程继承 close-only Worker 租约，项目导入前安装 Linux 内核父死信号；父进程确认回收后才登记终态。不确定终止时 Worker 停止领取，记录保留 running，后继实际取得租约后按既有 interrupted 语义恢复。子进程数据库只读，不初始化 schema/cursor 或发布结果。公共协议、队列预算、训练执行、数据库 schema 和评估算法不变；不构成 OS 沙箱或任意后代治理。
