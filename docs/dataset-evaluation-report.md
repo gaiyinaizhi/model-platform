@@ -1,6 +1,6 @@
 # 自训练模型独立评估报告
 
-本增量只为成功的 `dataset-trained-serving-evaluation/v1` 记录增加只读报告导出与标准库离线一致性校验。接口仍是鉴权 `GET /model-evaluations/{id}/report`；原导入 COCO 的 `independent-evaluation-report/v1` 保留原结构和字节语义。比较与错误图预览仍不支持新协议，原训练期报告是另一个入口。
+本增量只为成功的 `dataset-trained-serving-evaluation/v1` 记录增加只读报告导出与标准库离线一致性校验。接口仍是鉴权 `GET /model-evaluations/{id}/report`；原导入 COCO 的 `independent-evaluation-report/v1` 保留原结构和字节语义。比较已由后续独立契约扩展，错误图预览仍不支持新协议；原训练期报告是另一个入口。
 
 ## 身份、字段与协议
 
@@ -35,3 +35,6 @@ python -S -m scripts.validate_evaluation_report independent-evaluation-report.js
 `tests/test_dataset_evaluation_reports.py` 包括1/20类、中文、zero/no-GT、原训练val/test分支、全部嵌套对象未知字段、重算摘要后的语义篡改、只读/幂等下载、租户与状态、真实自生成常量ONNX监督评估后的API下载和标准库CLI。`tests/fixtures/dataset-evaluation-report.json` 是自生成常量ONNX的实际测量结果，仅用于契约测试，不是学习模型质量结果。其它类数/null变体是明确的合成契约数据。
 
 本地全量、真实训练模型与浏览器验收由此次交付证据单独记录；本文件不将局部测试称作外部CI，不表示已提交、合并、部署或迁移。
+
+
+报告作为后续[自训练独立评估比较](dataset-evaluation-comparison.md)的原始规范字节证据。比较不改变本报告schema、校验含义或离线入口；不重新序列化报告文本。

@@ -190,7 +190,7 @@ def make_handler(store, supervisor, auth):
                         pass
                     return
                 if url.query:
-                    if method != "GET" or len(parts) != 1 or parts[0] not in ("runs", "models", "deployments", "services", "model-evaluations", "model-evaluation-comparisons"):
+                    if method != "GET" or len(parts) != 1 or parts[0] not in ("runs", "models", "deployments", "services", "model-evaluations", "model-evaluation-comparisons", "dataset-model-evaluation-comparisons"):
                         raise Problem(400, "invalid_input", "Query parameters unsupported on this route")
                     if len(url.query) > 2200:
                         raise Problem(400, "invalid_input", "Query too long")
@@ -199,10 +199,13 @@ def make_handler(store, supervisor, auth):
                     except ValueError:
                         raise Problem(400, "invalid_input", "Invalid pagination query") from None
                     query = dict(pairs)
-                    if parts == ["model-evaluation-comparisons"]:
+                    if parts in (["model-evaluation-comparisons"], ["dataset-model-evaluation-comparisons"]):
                         if len(query) != len(pairs) or set(query) != {"evaluation_a_id", "evaluation_b_id"}:
                             raise Problem(400, "invalid_input", "Use exactly evaluation_a_id and evaluation_b_id")
-                        from .evaluation_comparisons import compare
+                        if parts[0] == "dataset-model-evaluation-comparisons":
+                            from .dataset_evaluation_comparisons import compare
+                        else:
+                            from .evaluation_comparisons import compare
                         self.respond(200, compare(evaluations, tenant, query["evaluation_a_id"], query["evaluation_b_id"]))
                         return
                     if parts == ["model-evaluations"]:
@@ -265,7 +268,7 @@ def make_handler(store, supervisor, auth):
             return read_artifact_body(self.rfile, self.connection, ASSET_BYTES)
 
         def route(self, method, parts, tenant):
-            if parts == ["model-evaluation-comparisons"]:
+            if parts in (["model-evaluation-comparisons"], ["dataset-model-evaluation-comparisons"]):
                 raise Problem(400, "invalid_input", "Use GET with evaluation_a_id and evaluation_b_id")
             if parts == ["model-evaluations"]:
                 if method == "GET":
