@@ -62,11 +62,14 @@ score恰为0.01保留；类别内NMS在IoU>0.65时抑制；每图所有类别合
 本协议只开放提交、轮询、历史和详情。以下接口对新协议明确返回409：
 
 - 报告导出：已由[后续只读报告切片](dataset-evaluation-report.md)支持成功记录；未成功返回 `evaluation_not_succeeded`。
-- 两条独立记录比较：`evaluation_comparison_unsupported`
+- 旧 COCO 比较端点处理新协议：`evaluation_comparison_unsupported`，新协议使用下述独立比较入口
 - 错误图像预览：`evaluation_preview_unsupported`
 
-先校验归属，比较先校验双方归属。新报告使用独立schema，未将新记录交给旧COCO80校验器；比较/图像仍明确不可用，原训练报告与训练比较仍是另一个入口。没有新增GPU、模型类型、自动训练、自动晋级、质量门禁、服务切换或设备认证。
+先校验归属，比较先校验双方归属。新报告使用独立schema，未将新记录交给旧COCO80校验器；旧 COCO 比较入口不接受新协议，图像仍明确不可用；新协议比较见下述契约，原训练报告与训练比较仍是另一个入口。没有新增GPU、模型类型、自动训练、自动晋级、质量门禁、服务切换或设备认证。
 
 ## 验收
 
 本轮的真实CPU/ONNX、独立重算、故障及全部回归结果记录在[专项验证](dataset-model-evaluation-verification.md)。它们不等同远端CI、部署或生产升级。
+
+
+新协议的独立评估比较现由[单独只读契约](dataset-evaluation-comparison.md)提供，不复用旧导入COCO比较端点；原端点对新协议仍返回unsupported。图像预览边界不变。
