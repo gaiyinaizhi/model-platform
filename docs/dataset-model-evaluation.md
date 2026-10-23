@@ -61,11 +61,11 @@ score恰为0.01保留；类别内NMS在IoU>0.65时抑制；每图所有类别合
 
 本协议只开放提交、轮询、历史和详情。以下接口对新协议明确返回409：
 
-- 报告导出：`evaluation_report_unsupported`
+- 报告导出：已由[后续只读报告切片](dataset-evaluation-report.md)支持成功记录；未成功返回 `evaluation_not_succeeded`。
 - 两条独立记录比较：`evaluation_comparison_unsupported`
 - 错误图像预览：`evaluation_preview_unsupported`
 
-先校验归属，比较先校验双方归属。不会把新记录交给旧COCO80报告/比较/图像校验器。界面明确不可用，原训练报告与训练比较仍是另一个入口。没有新增GPU、模型类型、自动训练、自动晋级、质量门禁、服务切换或设备认证。
+先校验归属，比较先校验双方归属。新报告使用独立schema，未将新记录交给旧COCO80校验器；比较/图像仍明确不可用，原训练报告与训练比较仍是另一个入口。没有新增GPU、模型类型、自动训练、自动晋级、质量门禁、服务切换或设备认证。
 
 ## 验收
 

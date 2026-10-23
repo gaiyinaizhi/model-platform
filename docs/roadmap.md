@@ -90,4 +90,9 @@ Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，�
 
 ## 数据集训练模型独立评估（2026-10-22）
 
-按[独立评审的新契约](dataset-model-evaluation.md)增加已登记yolox-nano-dataset/v1与另行发布val-only快照的显式提交、历史和详情，计算服务等价AP/AR及TP/FP/FN。原训练期评估与导入COCO结果保持各自语义，不认证跨数据集无泄漏。新协议报告/比较/图像预览、自动晋级、GPU和设备仍不在范围；实际验证见[专项记录](dataset-model-evaluation-verification.md)。
+按[独立评审的新契约](dataset-model-evaluation.md)增加已登记yolox-nano-dataset/v1与另行发布val-only快照的显式提交、历史和详情，计算服务等价AP/AR及TP/FP/FN。原训练期评估与导入COCO结果保持各自语义，不认证跨数据集无泄漏。新协议报告已由后续只读切片扩展，比较/图像预览、自动晋级、GPU和设备仍不在范围；实际验证见[专项记录](dataset-model-evaluation-verification.md)。
+
+
+## 自训练独立评估报告（2026-10-23）
+
+新增[新协议只读报告](dataset-evaluation-report.md)，复用精确鉴权下载与标准库校验入口，保留原训练血缘和本次评估身份、1–20类别及固定服务阈值。原导入COCO报告不变。只验证内部一致性，不认证来源、无泄漏、泛化质量或生产批准；比较与错误图预览仍待单独推进。

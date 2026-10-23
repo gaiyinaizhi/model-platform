@@ -36,10 +36,15 @@ python -S /path/to/backend/scripts/validate_evaluation_report.py /path/to/report
 
 This resolves only the source tree containing the trusted validator script, never code adjacent to the input report.
 
-No optional ML dependencies, runtime setup, network, credentials, input-file writes, or dynamic imports are used. `evaluation_report_schema.py` is the shared server/offline implementation. Its pinned protocol/category constants and mirrored metric helpers have parity tests against existing evaluation code; changes require coordinated contract review.
+No optional ML dependencies, runtime setup, network, credentials, or input-file writes are used. The closed schema dispatcher imports only the statically named portable trained-report module for its exact discriminator. `evaluation_report_schema.py` is the shared server/offline implementation. Its pinned protocol/category constants and mirrored metric helpers have parity tests against existing evaluation code; changes require coordinated contract review.
 
 The CLI accepts one local regular file, reads at most 512 KiB + 1, and rejects unstable reads, invalid UTF-8/JSON, duplicate keys, noncanonical bytes, unknown fields, invalid types/finite ranges/counts/ratios/categories/environments/scope or digests. Limits: preparse nesting 24, decoded nodes 20,000, decoded strings 8,192 characters, numeric tokens 64 characters. It rejects huge string tokens before JSON decoding. It exits nonzero with a concise error that does not echo file contents or paths. Success explicitly says internal consistency, unverified authenticity and reference-only source hashes.
 
 ## Verification status
 
 Focused tests cover repeated bytes, no disclosure, every nested object rejecting unknown keys, rehashed semantic corruption, ownership/state/tamper precedence, strict route/header/auth behavior, parser resource limits/duplicates/truncation/nonfinite values, regular-file handling, and CLI execution under Python `-S`. Fixtures are synthetic and do not establish model quality. Actual commands and results are recorded separately after visible Terminal execution; no passing claim is made here before execution.
+
+
+## Trained protocol extension
+
+The same endpoint and CLI additionally accept the separate `dataset-trained-independent-evaluation-report/v1` schema; see [trained report contract](dataset-evaluation-report.md). All imported schema fields and output bytes remain unchanged. Never infer that an imported-v1 report accepts trained model fields or thresholds.

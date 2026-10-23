@@ -12,7 +12,7 @@ Sluggard 仅为可选业务接入，管理课程、业务任务、业务审批�
 
 ## 已实现
 
-- 新增[数据集训练模型独立评估](docs/dataset-model-evaluation.md)：单独冻结val-only数据，固定服务阈值下实际AP/AR与TP/FP/FN，保留原训练期val/test结果；跨数据集泄漏未自动审计，新协议报告/比较/图像预览明确不可用。
+- 新增[数据集训练模型独立评估](docs/dataset-model-evaluation.md)：单独冻结val-only数据，固定服务阈值下实际AP/AR与TP/FP/FN，保留原训练期val/test结果；跨数据集泄漏未自动审计；新增[只读报告导出与离线校验](docs/dataset-evaluation-report.md)，新协议比较/图像预览仍不可用。
 
 - 新增[独立评估子进程监督](docs/independent-evaluation-supervision.md)：继承 Worker 租约、内核父死终止、只读子进程与确认回收后登记终态；监督增量本身不改变评估协议，数据集训练模型评估由上项独立契约扩展。
 
