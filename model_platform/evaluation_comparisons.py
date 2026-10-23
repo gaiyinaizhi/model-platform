@@ -86,6 +86,9 @@ def compare(evaluations, tenant, evaluation_a_id, evaluation_b_id):
     # Resolve BOTH owners before state or evidence checks to avoid an oracle
     # that reveals state/tamper on one side while the other is inaccessible.
     rows = [evaluations._row(tenant, item_id) for item_id in (evaluation_a_id, evaluation_b_id)]
+    from .model_evaluations import require_imported_capability
+    for row in rows:
+        require_imported_capability(row, 'comparison')
     if any(row['status'] != 'succeeded' for row in rows):
         raise Problem(409, 'evaluation_not_succeeded', 'Both evaluation records must have succeeded')
     a, b = [evaluations.detail(row) for row in rows]

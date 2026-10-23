@@ -1,4 +1,4 @@
-"""Independent, immutable imported-model measurements; never a training run."""
+"""Independent immutable model measurements; never a training run."""
 import contextlib
 import hashlib
 import importlib.util
@@ -114,8 +114,9 @@ def request(body):
     object_fields(body, ('model_version_id', 'dataset_version_id', 'split', 'protocol'))
     for key in ('model_version_id', 'dataset_version_id'):
         text_value(body[key], key, 80)
-    if body['split'] != 'val' or body['protocol'] != PROTOCOL:
-        raise Problem(400, 'invalid_input', 'Choose the fixed imported evaluation protocol and val split')
+    from .dataset_model_evaluations import PROTOCOL as trained_protocol
+    if body['split'] != 'val' or body['protocol'] not in (PROTOCOL, trained_protocol):
+        raise Problem(400, 'invalid_input', 'Choose a supported fixed evaluation protocol and val split')
     return body
 
 
@@ -171,6 +172,13 @@ class ModelEvaluationStore:
         self.root.mkdir(mode=0o700, exist_ok=True)
 
     def binding_for(self, tenant, body, submitted_environment=None):
+        from . import dataset_model_evaluations as trained
+        # Resolve both owners before revealing origin, support or evidence state.
+        with self.runtime.connection() as db:
+            self.store._owned(db, 'models', tenant, body['model_version_id'])
+            self.store._owned(db, 'dataset_versions', tenant, body['dataset_version_id'])
+        if body['protocol'] == trained.PROTOCOL:
+            return trained.binding_for(self, tenant, body, submitted_environment)
         from .datasets import DatasetStore
         from .model_imports import validate_manifest, verify_artifact
         from . import pretrained_yolox as nano
@@ -275,6 +283,9 @@ class ModelEvaluationStore:
                 with self.runtime.connection() as db:
                     self.store._owned(db, 'models', row['tenant'], row['model_version_id'])
                     self.store._owned(db, 'dataset_versions', row['tenant'], row['dataset_version_id'])
+            from . import dataset_model_evaluations as trained
+            if body['protocol'] == trained.PROTOCOL:
+                trained.validate_binding(binding)
             return binding
         except (Problem, ValueError, TypeError, KeyError, AttributeError, OSError):
             raise Problem(409, 'evaluation_integrity', 'Evaluation identity or evidence has changed') from None
@@ -283,7 +294,7 @@ class ModelEvaluationStore:
     def summary(row):
         return {**{key: row[key] for key in ('id', 'status', 'created_at', 'started_at', 'finished_at',
                 'model_version_id', 'dataset_version_id', 'request_sha256', 'error_code')},
-                'split': 'val', 'protocol': PROTOCOL, 'result': None}
+                'split': 'val', 'protocol': json.loads(row['request_json'])['protocol'], 'result': None}
 
     def get(self, tenant, item_id):
         row = self._row(tenant, item_id)
@@ -320,6 +331,9 @@ class ModelEvaluationStore:
             raw = _read_file(self.evidence_path(row['id']), MAX_CHILD_BYTES)
             if hashlib.sha256(raw).hexdigest() != result['prediction_sha256']:
                 raise ValueError('prediction evidence')
+            from . import dataset_model_evaluations as trained
+            if json.loads(row['request_json'])['protocol'] == trained.PROTOCOL:
+                trained.validate_result(binding, parsed)
             return parsed, result['result_sha256']
         except (ValueError, TypeError, KeyError, AttributeError, OSError):
             raise Problem(409, 'evaluation_integrity', 'Evaluation result or prediction evidence has changed') from None
@@ -406,6 +420,12 @@ class ModelEvaluationStore:
         expected = dict(self.expected_digests(binding, row['binding_sha256']), prediction_sha256=prediction_hash)
         if result.get('digests') != expected or len(prediction_raw) > MAX_CHILD_BYTES:
             raise Problem(409, 'evaluation_integrity', 'Execution evidence does not match the immutable binding')
+        from . import dataset_model_evaluations as trained
+        if json.loads(row['request_json'])['protocol'] == trained.PROTOCOL:
+            try:
+                trained.validate_result(binding, result)
+            except (ValueError, TypeError, KeyError, AttributeError):
+                raise Problem(409, 'evaluation_integrity', 'Trained evaluation result is invalid') from None
         detail = dict(self.summary(row), status='succeeded', result=result, binding=binding, result_sha256=digest(result))
         if len(encode(detail)) > MAX_DETAIL_BYTES:
             raise Problem(409, 'evaluation_result_limit', 'Evaluation result exceeds the public response budget')
@@ -487,6 +507,10 @@ def _diagnostics(matching):
 
 def measure(evaluations, row):
     """Runs only inside the bounded evaluator process."""
+    from . import dataset_model_evaluations as trained
+    measured_binding = evaluations.verify_binding(row)
+    if measured_binding.get('protocol', {}).get('id') == trained.PROTOCOL:
+        return trained.measure(evaluations, row)
     import cv2
     import numpy as np
     import importlib.metadata
@@ -605,3 +629,19 @@ def execute(evaluations, row, loaded_environment, timeout=WALL_SECONDS, *, lease
     except Exception:
         require_termination()
         evaluations.fail(row['id'], 'evaluation_failed')
+
+
+def require_imported_capability(row, capability):
+    """Called only after every relevant owner is resolved."""
+    # Legacy internal callers may supply status-only snapshots to the pure
+    # comparison helpers; their full imported semantic validation remains below.
+    # Persisted public rows always have the required NOT NULL request_json.
+    if 'request_json' not in row.keys():
+        return
+    try:
+        body = request(json.loads(row['request_json']))
+    except (Problem, ValueError, TypeError, KeyError):
+        raise Problem(409, 'evaluation_integrity', 'Evaluation request identity is invalid') from None
+    if body['protocol'] != PROTOCOL:
+        raise Problem(409, 'evaluation_' + capability + '_unsupported',
+                      'This capability supports only imported COCO independent evaluations')

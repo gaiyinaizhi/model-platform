@@ -10,6 +10,8 @@ def report(evaluations, tenant, evaluation_id):
     if type(evaluation_id) is not str or not ID.fullmatch(evaluation_id):
         raise Problem(400, 'invalid_input', 'Expected an independent evaluation ID')
     row = evaluations._row(tenant, evaluation_id)
+    from .model_evaluations import require_imported_capability
+    require_imported_capability(row, 'report')
     if row['status'] != 'succeeded':
         raise Problem(409, 'evaluation_not_succeeded', 'Evaluation record must have succeeded')
     detail = evaluations.detail(row)
