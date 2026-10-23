@@ -1,4 +1,6 @@
 """Read-only bounded projection of one captured, verified evaluation."""
+import json
+
 from .common import Problem
 from .evaluation_comparison_validation import validate as validate_source
 from .model_evaluations import ID
@@ -11,11 +13,21 @@ def report(evaluations, tenant, evaluation_id):
         raise Problem(400, 'invalid_input', 'Expected an independent evaluation ID')
     row = evaluations._row(tenant, evaluation_id)
     from .model_evaluations import require_imported_capability
-    require_imported_capability(row, 'report')
+    from .model_evaluations import request
+    from . import dataset_evaluation_report_schema as trained
+    try:
+        is_trained = ('request_json' in row.keys()
+                      and request(json.loads(row['request_json']))['protocol'] == trained.PROTOCOL)
+    except (Problem, ValueError, TypeError, KeyError):
+        raise Problem(409, 'evaluation_integrity', 'Evaluation request identity is invalid') from None
+    if not is_trained:
+        require_imported_capability(row, 'report')
     if row['status'] != 'succeeded':
         raise Problem(409, 'evaluation_not_succeeded', 'Evaluation record must have succeeded')
     detail = evaluations.detail(row)
     try:
+        if is_trained:
+            return trained.project(detail)
         validate_source(detail)
         binding, result = detail['binding'], detail['result']
         dataset = binding['dataset']

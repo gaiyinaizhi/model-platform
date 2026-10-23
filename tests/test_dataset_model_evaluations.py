@@ -163,7 +163,7 @@ class TrainedEvaluationTests(unittest.TestCase):
             self.assertEqual(call('GET', path, tenant='unauthorized')[0], 401)
             status, history = call('GET', '/model-evaluations?model_version_id='+self.id)
             self.assertEqual(status, 200); self.assertEqual(history['evaluations'][0]['id'], item['id'])
-            self.assertEqual(call('GET', path+'/report')[1]['error']['code'], 'evaluation_report_unsupported')
+            self.assertEqual(call('GET', path+'/report')[1]['error']['code'], 'evaluation_not_succeeded')
             row = self.evaluations.claim(); independent.execute(self.evaluations, row, environment(), timeout=30)
             status, result = call('GET', path)
             self.assertEqual(status, 200); self.assertEqual(result['status'], 'succeeded')
@@ -217,7 +217,7 @@ class TrainedEvaluationTests(unittest.TestCase):
         second = self.create('second')
         with self.assertRaises(Problem) as error: self.create(body=dict(self.body, dataset_version_id=self.original['id']))
         self.assertEqual(error.exception.code, 'idempotency_conflict')
-        for action, code in ((lambda: report(self.evaluations, 'demo', item['id']), 'evaluation_report_unsupported'),
+        for action, code in ((lambda: report(self.evaluations, 'demo', item['id']), 'evaluation_not_succeeded'),
                              (lambda: compare(self.evaluations, 'demo', item['id'], second['id']), 'evaluation_comparison_unsupported'),
                              (lambda: preview(self.evaluations, 'demo', item['id'], '0'), 'evaluation_preview_unsupported')):
             with self.assertRaises(Problem) as error: action()

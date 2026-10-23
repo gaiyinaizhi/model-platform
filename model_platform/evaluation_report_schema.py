@@ -352,6 +352,9 @@ def _validate(value):
 def validate_report(value):
     """Check schema/semantics/digests, never trusted origin or source evidence."""
     try:
+        if type(value) is dict and value.get('schema_version') == 'dataset-trained-independent-evaluation-report/v1':
+            from .dataset_evaluation_report_schema import validate_report as validate_trained
+            return validate_trained(value)
         return _validate(value)
     except (ValueError, TypeError, KeyError, OverflowError, RecursionError, AttributeError):
         raise ValueError('Invalid independent evaluation report') from None
