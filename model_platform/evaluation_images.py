@@ -223,6 +223,8 @@ def preview(evaluations, tenant, item_id, index):
     if not isinstance(item_id, str) or not ID.fullmatch(item_id) or not isinstance(index, str) or not _INDEX.fullmatch(index):
         raise Problem(400, 'invalid_input', 'Expected an evaluation ID and canonical error index 0..19')
     row = evaluations._row(tenant, item_id)
+    from .model_evaluations import require_imported_capability
+    require_imported_capability(row, 'preview')
     # Ownership lookup must precede state, integrity and filesystem inspection.
     if row['status'] != 'succeeded':
         raise Problem(409, 'evaluation_not_succeeded', 'Evaluation must have succeeded')

@@ -85,4 +85,9 @@ Fashion-MNIST小CNN：官方60000训练记录中固定分层6000从零训练，�
 
 ## 独立评估安全执行前置（2026-10-22）
 
-新增[独立评估监督](independent-evaluation-supervision.md)，对齐已验证的训练生命周期原语，但不泛化执行框架：继承 Worker 租约、内核父死终止、子进程只读、确认回收后终态、未知终止停止领取。无 schema/接口/指标变化或生产升级。数据集训练模型在新冻结数据集上的独立评估仍待后续独立契约与实现，不混入本轮；现有训练期 val/test 和导入模型 COCO 独立评估保持各自语义。
+新增[独立评估监督](independent-evaluation-supervision.md)，对齐已验证的训练生命周期原语，但不泛化执行框架：继承 Worker 租约、内核父死终止、子进程只读、确认回收后终态、未知终止停止领取。无 schema/接口/指标变化或生产升级。该安全前置本身未加入数据集训练模型评估，随后新增能力见下节；现有训练期 val/test 和导入模型 COCO 独立评估保持各自语义。
+
+
+## 数据集训练模型独立评估（2026-10-22）
+
+按[独立评审的新契约](dataset-model-evaluation.md)增加已登记yolox-nano-dataset/v1与另行发布val-only快照的显式提交、历史和详情，计算服务等价AP/AR及TP/FP/FN。原训练期评估与导入COCO结果保持各自语义，不认证跨数据集无泄漏。新协议报告/比较/图像预览、自动晋级、GPU和设备仍不在范围；实际验证见[专项记录](dataset-model-evaluation-verification.md)。
